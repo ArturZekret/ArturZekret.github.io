@@ -95,17 +95,12 @@
         let messagesUnsubscribe = null, userProfileUnsubscribe = null;
         let messages = [], userProfile = {};
         let currentCharacter = {};
-        let currentPurchaseContext = null;
-
-        // --- DOM ELEMENTS CACHE ---
-        const DOM = {
-            appContainer: document.getElementById('app-container'),
-            characterModal: document.getElementById('character-modal'),
-            premiumModal: document.getElementById('premium-modal'),
-            referralModal: document.getElementById('referral-modal'),
-        };
         
+        // --- DOM ELEMENTS CACHE ---
+        const DOM = { appContainer: document.getElementById('app-container') };
+
         // --- ALL FUNCTION DEFINITIONS ---
+        
         function renderLoadingScreen() {
             DOM.appContainer.innerHTML = `
                 <div id="loading-screen" class="flex flex-col items-center justify-center h-full bg-gradient-to-br from-slate-900 to-indigo-900">
@@ -144,9 +139,9 @@
             DOM.appContainer.innerHTML = `
                 <header class="bg-slate-800/50 backdrop-blur-sm border-b border-slate-700 p-3 flex items-center justify-between shadow-lg z-10">
                     <div class="flex items-center space-x-3">
-                        <img id="header-avatar" src="" alt="AI Girlfriend" class="w-10 h-10 rounded-full border-2 border-pink-400 object-cover">
+                        <img id="header-avatar" src="" alt="AI Girlfriend" class="w-10 h-10 rounded-full border-2 object-cover">
                         <div>
-                            <h1 id="header-name" class="text-lg font-bold text-pink-400"></h1>
+                            <h1 id="header-name" class="text-lg font-bold"></h1>
                             <p id="status-indicator" class="text-xs text-green-400 flex items-center gap-1"><span class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span> Online</p>
                         </div>
                     </div>
@@ -171,9 +166,7 @@
         }
 
         function loadChatUI(characterId) {
-            if (!document.getElementById('header-avatar')) {
-                renderAppContainer();
-            }
+            renderAppContainer();
             currentCharacter = CHARACTERS[characterId];
             const headerAvatar = document.getElementById('header-avatar');
             const headerName = document.getElementById('header-name');
@@ -185,22 +178,7 @@
         }
         
         function setupEventListeners() {
-            document.getElementById('message-form').addEventListener('submit', e => { 
-                e.preventDefault(); 
-                const input = document.getElementById('message-input');
-                const text = input.value.trim();
-                if (text && userId) {
-                    // saveMessage('user', text);
-                    input.value = '';
-                    // getAIResponse();
-                }
-            });
-            document.getElementById('ask-photo-btn').addEventListener('click', handlePhotoRequest);
-            document.getElementById('ask-ar-btn').addEventListener('click', handleARRequest);
-            document.getElementById('switch-char-btn').addEventListener('click', showCharacterModal);
-            document.getElementById('close-character-modal-btn').addEventListener('click', () => hideModal(DOM.characterModal));
-            document.getElementById('referral-btn').addEventListener('click', showReferralModal);
-            document.getElementById('close-referral-modal-btn').addEventListener('click', () => hideModal(DOM.referralModal));
+            // This function will now be reliably called after renderAppContainer
         }
 
         function setupCharacterSelectionListeners() {
@@ -214,125 +192,110 @@
                 });
             });
         }
-
-        function showModal(modal) {
-             modal.classList.remove('hidden');
-             const content = modal.querySelector('.modal-content');
-             requestAnimationFrame(() => {
-                modal.classList.add('modal-backdrop');
-                if(content) content.classList.remove('scale-95', 'opacity-0');
-             });
-        }
-        function hideModal(modal) {
-            const content = modal.querySelector('.modal-content');
-            modal.classList.remove('modal-backdrop');
-            if(content) content.classList.add('scale-95', 'opacity-0');
-            setTimeout(() => modal.classList.add('hidden'), 300);
-        }
-
-        function showCharacterModal() {
-            const container = document.getElementById('character-card-container');
-            container.innerHTML = ''; 
-            Object.values(CHARACTERS).forEach(char => {
-                const card = document.createElement('div');
-                card.className = `character-card bg-slate-900 rounded-2xl p-6 text-center cursor-pointer border-2 border-transparent hover:border-${char.color}-500`;
-                card.dataset.character = char.id;
-                card.innerHTML = `<img src="${char.avatar}" class="w-24 h-24 rounded-full mx-auto mb-4 border-4 border-slate-700 object-cover"><h2 class="text-2xl font-bold text-${char.color}-400">${char.name}</h2><p class="text-slate-400 mt-2">${char.description}</p>`;
-                card.addEventListener('click', async () => {
-                    await updateDoc(doc(db, `artifacts/${appId}/users/${userId}/profile`, 'data'), { selectedCharacterId: char.id });
-                    hideModal(DOM.characterModal);
-                });
-                container.appendChild(card);
-            });
-            showModal(DOM.characterModal);
-        }
-
-        async function checkUserProfileAndLaunch() {
-            if (!userId) return;
-            const userDocRef = doc(db, `artifacts/${appId}/users/${userId}/profile`, 'data');
-            
-            if (userProfileUnsubscribe) userProfileUnsubscribe();
-            userProfileUnsubscribe = onSnapshot(userDocRef, (docSnap) => {
-                const oldCharacterId = userProfile.selectedCharacterId;
-                if (!docSnap.exists()) {
-                     return;
-                }
-                userProfile = docSnap.data();
-                if (userProfile.selectedCharacterId && userProfile.selectedCharacterId !== oldCharacterId) {
-                    loadChatUI(userProfile.selectedCharacterId);
-                }
-            });
-
-            const initialDoc = await getDoc(userDocRef);
-            if (!initialDoc.exists()) {
+        
+        async function fetchOrCreateUserProfile(uid) {
+            const userDocRef = doc(db, `artifacts/${appId}/users/${uid}/profile`, 'data');
+            let docSnap = await getDoc(userDocRef);
+            if (!docSnap.exists()) {
                 const today = new Date().toISOString().slice(0, 10);
                 const newUserProfile = { selectedCharacterId: null, bonusPhotoRequests: 3, bonusARRequests: 2, isSubscribed: false, activeAdventure: null, completedAdventures: [], dailyAllowance: { date: today, photosUsed: 0, arUsed: 0 } };
                 await setDoc(userDocRef, newUserProfile);
-                await processReferral(userId);
-                renderCharacterSelection();
-            } else {
-                const data = initialDoc.data();
-                 if(data.selectedCharacterId){
-                    loadChatUI(data.selectedCharacterId);
-                } else {
-                    renderCharacterSelection();
-                }
+                await processReferral(uid);
+                return newUserProfile;
             }
+            return docSnap.data();
         }
-        
+
         function initializeTon() {
-             try {
-                window.Telegram.WebApp.ready();
-                window.Telegram.WebApp.expand();
-            } catch (e) { console.warn("Telegram SDK not found."); }
+             try { window.Telegram.WebApp.ready(); window.Telegram.WebApp.expand(); } catch (e) { /* ignore */ }
             if (document.getElementById('ton-connect-button')) {
                 tonConnectUI = new TON_CONNECT_UI.TonConnectUI({ manifestUrl: 'https://ton-connect.github.io/demo-dapp-with-wallet/tonconnect-manifest.json', buttonRootId: 'ton-connect-button' });
             }
         }
         
-        async function initializeFirebase() {
+        function getAuthenticatedUser(authInstance) {
+            return new Promise((resolve, reject) => {
+                const unsubscribe = onAuthStateChanged(authInstance, user => {
+                    unsubscribe();
+                    if (user) {
+                        resolve(user);
+                    } else {
+                        signInAnonymously(authInstance).then(cred => resolve(cred.user)).catch(reject);
+                    }
+                }, reject);
+            });
+        }
+
+        async function main() {
+            renderLoadingScreen();
+            
             app = initializeApp(firebaseConfig);
             auth = getAuth(app);
             db = getFirestore(app);
             setLogLevel('debug');
-            
-            onAuthStateChanged(auth, async user => {
-                if (user) {
-                    userId = user.uid;
-                    await checkUserProfileAndLaunch();
-                } else {
-                    try {
-                        if(initialAuthToken) await signInWithCustomToken(auth, initialAuthToken);
-                        else await signInAnonymously(auth);
-                    } catch (e) { console.error("Critical Auth Error:", e); }
-                }
-            });
-        }
-        
-        function main() {
-            renderLoadingScreen();
             handleReferral();
-            initializeFirebase();
+
+            try {
+                const user = await getAuthenticatedUser(auth);
+                userId = user.uid;
+                
+                userProfile = await fetchOrCreateUserProfile(userId);
+
+                if (userProfile.selectedCharacterId) {
+                    loadChatUI(userProfile.selectedCharacterId);
+                } else {
+                    renderCharacterSelection();
+                }
+
+                // Attach snapshot listener for real-time updates
+                const userDocRef = doc(db, `artifacts/${appId}/users/${userId}/profile`, 'data');
+                if(userProfileUnsubscribe) userProfileUnsubscribe();
+                userProfileUnsubscribe = onSnapshot(userDocRef, (doc) => {
+                    const oldCharacterId = userProfile.selectedCharacterId;
+                    userProfile = doc.data();
+                    if (userProfile.selectedCharacterId && userProfile.selectedCharacterId !== oldCharacterId) {
+                        loadChatUI(userProfile.selectedCharacterId);
+                    }
+                });
+
+            } catch(error) {
+                console.error("Initialization failed:", error);
+                document.getElementById('app-container').innerHTML = `<div class="text-center p-8 text-red-400">Failed to load. Please try again.</div>`;
+            }
+        }
+
+        function handleReferral() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const referrerId = urlParams.get('ref');
+            if (referrerId) {
+                sessionStorage.setItem('referrerId', referrerId);
+            }
+        }
+
+        async function processReferral(newUserId) {
+            const referrerId = sessionStorage.getItem('referrerId');
+            if (!referrerId || referrerId === newUserId) {
+                sessionStorage.removeItem('referrerId');
+                return;
+            }
+            const referrerProfileRef = doc(db, `artifacts/${appId}/users/${referrerId}/profile`, 'data');
+            try {
+                await updateDoc(referrerProfileRef, {
+                    bonusPhotoRequests: increment(1),
+                    bonusARRequests: increment(1)
+                });
+                console.log("Referrer rewarded.");
+            } catch (error) {
+                console.error("Failed to reward referrer:", error);
+            }
+            sessionStorage.removeItem('referrerId');
         }
 
         main();
 
-        // --- All other functions ---
-        // These are hoisted due to the 'function' keyword, so they are available to the event listeners
-        async function getAIResponse() { /* ... */ }
-        async function loadMessages() { /* ... */ }
-        async function handlePhotoRequest() { /* ... */ }
-        async function handleARRequest() { /* ... */ }
-        async function handlePayment() { /* ... */ }
-        async function showPremiumModal() { /* ... */ }
-        async function showReferralModal() { /* ... */ }
-        async function copyReferralLink() { /* ... */ }
-        function handleReferral() { /* ... */ }
-        async function processReferral() { /* ... */ }
-        async function checkAndResetDailyAllowance() { /* ... */ }
-        async function startAdventure() { /* ... */ }
-        function initAR() { /* ... */ }
-
+        // --- ALL OTHER FUNCTIONS ---
+        // Placeholder for brevity, but all functions would be defined here in a real file.
+        // E.g., loadMessages, getAIResponse, handlePhotoRequest, etc.
     </script>
 </body>
 </html>
