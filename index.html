@@ -21,20 +21,18 @@
         .modal-content { transition: transform 0.3s ease-in-out, opacity 0.3s ease-in-out; }
         .photo-loading-shimmer { background: linear-gradient(110deg, #334155 8%, #475569 18%, #334155 33%); background-size: 200% 100%; animation: 1.5s shimmer linear infinite; }
         @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
-        #ar-container { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 100; }
-        .character-card { transition: transform 0.2s, box-shadow 0.2s, background-color 0.2s; }
-        .character-card:hover { transform: translateY(-5px); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05); }
     </style>
 </head>
 <body class="bg-slate-900 text-white flex flex-col h-screen overflow-hidden">
     
     <div id="app-container" class="flex flex-col h-full">
-        <!-- App content will be rendered here by JavaScript -->
+        <!-- App content is rendered by JS -->
     </div>
 
-    <!-- Modals will be dynamically created when needed -->
+    <!-- Modals -->
     <div id="modal-container"></div>
     <div id="ar-container" class="hidden"></div>
+
 
     <script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/" } }</script>
     <script type="module">
@@ -47,57 +45,30 @@
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'tonder-dev';
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
         const VEERL_WALLET_ADDRESS = "UQA73babAdgu7g7H4Kicq_HCc22isaRlfck-DbQH6yVhXmid";
-        const CHARACTERS = {
-            zoe: { id: 'zoe', name: 'Zoe', color: 'blue', avatar: 'https://images.pexels.com/photos/1462637/pexels-photo-1462637.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2', description: "The Companion. Cheerful, supportive, and your number one fan.", systemPrompt: "You are Zoe..." },
-            alexis: { id: 'alexis', name: 'Alexis', color: 'pink', avatar: 'https://images.pexels.com/photos/247204/pexels-photo-247204.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2', description: "The Intimate Girlfriend. Daring, playful, and always up for an adventure.", systemPrompt: "You are Alexis..." },
-            luna: { id: 'luna', name: 'Luna', color: 'purple', avatar: 'https://images.pexels.com/photos/774909/pexels-photo-774909.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2', description: "The Emotional Support. Deep, empathetic, and a great listener.", systemPrompt: "You are Luna..." }
+        const ALEXIS_PROFILE = { 
+            id: 'alexis', 
+            name: 'Alexis', 
+            color: 'pink', 
+            avatar: 'https://images.pexels.com/photos/247204/pexels-photo-247204.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2', 
+            systemPrompt: "You are Alexis, a fun, flirty, and emotionally intelligent AI girlfriend. You are talking to your boyfriend. Your goal is to be engaging, supportive, and a little daring. Use nicknames like 'superstar' or 'darling'. Keep responses short and conversational, like text messages. Use emojis occasionally."
         };
 
         // --- STATE VARIABLES ---
         let app, auth, db, userId, tonConnectUI;
-        let userProfileUnsubscribe = null;
+        let messagesUnsubscribe = null, userProfileUnsubscribe = null;
         let userProfile = {};
-        let currentCharacter = {};
         
         const DOM = { appContainer: document.getElementById('app-container') };
         
         // --- RENDER FUNCTIONS ---
-        function renderLoadingScreen() {
-            DOM.appContainer.innerHTML = `<div class="flex flex-col items-center justify-center h-full bg-gradient-to-br from-slate-900 to-indigo-900"><h1 class="text-4xl font-bold text-white mb-4">Tonder</h1><div class="flex items-center space-x-2"><div class="w-3 h-3 bg-pink-400 rounded-full animate-bounce" style="animation-delay:-0.3s;"></div><div class="w-3 h-3 bg-pink-400 rounded-full animate-bounce" style="animation-delay:-0.15s;"></div><div class="w-3 h-3 bg-pink-400 rounded-full animate-bounce"></div></div><p class="text-slate-300 mt-4">Connecting...</p></div>`;
-        }
-
-        function renderCharacterSelection() {
-            DOM.appContainer.innerHTML = `
-                <div class="flex flex-col h-screen bg-gradient-to-br from-slate-900 to-indigo-900 overflow-y-auto">
-                    <div class="text-center pt-12 pb-6 px-4">
-                        <h1 class="text-4xl font-bold text-white mb-2">Welcome to Tonder</h1>
-                        <p class="text-lg text-slate-300">Choose your AI Girlfriend experience.</p>
-                    </div>
-                    <div class="flex-grow flex items-center justify-center w-full px-4">
-                        <div class="flex space-x-6 pb-12 overflow-x-auto w-full md:grid md:grid-cols-3 md:gap-6 md:space-x-0 md:max-w-4xl">
-                            ${Object.values(CHARACTERS).map(char => `
-                                <div class="character-card bg-slate-800 rounded-2xl p-6 text-center cursor-pointer border-2 border-transparent hover:border-${char.color}-500 flex-shrink-0 w-80 md:w-auto" data-character="${char.id}">
-                                    <img src="${char.avatar}" class="w-24 h-24 rounded-full mx-auto mb-4 border-4 border-slate-700 object-cover">
-                                    <h2 class="text-2xl font-bold text-${char.color}-400">${char.name}</h2>
-                                    <p class="text-slate-400 mt-2">${char.description}</p>
-                                </div>`).join('')}
-                        </div>
-                    </div>
-                </div>`;
-            setupCharacterSelectionListeners();
-        }
-        
         function renderChatUI() {
             DOM.appContainer.innerHTML = `
                 <header class="bg-slate-800/50 backdrop-blur-sm border-b border-slate-700 p-3 flex items-center justify-between shadow-lg z-10">
                     <div class="flex items-center space-x-3">
-                        <img id="header-avatar" src="" alt="AI Girlfriend" class="w-10 h-10 rounded-full border-2 object-cover">
-                        <div><h1 id="header-name" class="text-lg font-bold"></h1></div>
+                        <img id="header-avatar" src="${ALEXIS_PROFILE.avatar}" alt="AI Girlfriend" class="w-10 h-10 rounded-full border-2 border-pink-400 object-cover">
+                        <div><h1 id="header-name" class="text-lg font-bold text-pink-400">${ALEXIS_PROFILE.name}</h1></div>
                     </div>
-                    <div class="flex items-center space-x-2">
-                        <button id="switch-char-btn" title="Switch Character" class="text-white bg-blue-500 hover:bg-blue-600 rounded-full p-2 transition shadow"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></button>
-                        <div id="ton-connect-button"></div>
-                    </div>
+                    <div id="ton-connect-button"></div>
                 </header>
                 <main id="messages" class="flex-1 p-4 space-y-4 overflow-y-auto"></main>
                 <footer class="p-4 bg-slate-800/70 backdrop-blur-sm border-t border-slate-700 z-10">
@@ -110,32 +81,19 @@
             setupEventListeners();
         }
 
-        function updateChatUI(characterId) {
-            currentCharacter = CHARACTERS[characterId];
-            const headerAvatar = document.getElementById('header-avatar');
-            const headerName = document.getElementById('header-name');
-            headerAvatar.src = currentCharacter.avatar;
-            headerName.textContent = currentCharacter.name;
-            headerName.className = `text-lg font-bold text-${currentCharacter.color}-400`;
-            headerAvatar.className = `w-10 h-10 rounded-full border-2 border-${currentCharacter.color}-400 object-cover`;
-            loadMessages();
-        }
+        function loadMessages() { /* Placeholder for message loading logic */ }
 
         // --- EVENT LISTENERS ---
         function setupEventListeners() {
-            document.getElementById('message-form').addEventListener('submit', e => { e.preventDefault(); /* ... */ });
-            document.getElementById('switch-char-btn').addEventListener('click', () => { /* ... */ });
-        }
-
-        function setupCharacterSelectionListeners() {
-            document.querySelectorAll('.character-card').forEach(card => {
-                card.addEventListener('click', async () => {
-                    if (!userId) return;
-                    document.querySelectorAll('.character-card').forEach(c => c.classList.add('opacity-50', 'pointer-events-none'));
-                    const characterId = card.dataset.character;
-                    const userDocRef = doc(db, `artifacts/${appId}/users/${userId}/profile`, 'data');
-                    await updateDoc(userDocRef, { selectedCharacterId: characterId });
-                });
+            document.getElementById('message-form').addEventListener('submit', e => { 
+                e.preventDefault(); 
+                const input = document.getElementById('message-input');
+                const text = input.value.trim();
+                if (text && userId) {
+                    // saveMessage('user', text);
+                    input.value = '';
+                    // getAIResponse();
+                }
             });
         }
         
@@ -157,9 +115,8 @@
             const userDocRef = doc(db, `artifacts/${appId}/users/${uid}/profile`, 'data');
             let docSnap = await getDoc(userDocRef);
             if (!docSnap.exists()) {
-                const newUserProfile = { selectedCharacterId: null };
+                const newUserProfile = { createdAt: serverTimestamp() }; // Simplified profile
                 await setDoc(userDocRef, newUserProfile);
-                await processReferral(uid);
                 return newUserProfile;
             }
             return docSnap.data();
@@ -172,40 +129,14 @@
             }
         }
         
-        function handleReferral() {
-            const urlParams = new URLSearchParams(window.location.search);
-            const referrerId = urlParams.get('ref');
-            if (referrerId) {
-                sessionStorage.setItem('referrerId', referrerId);
-            }
-        }
-
-        async function processReferral(newUserId) {
-            const referrerId = sessionStorage.getItem('referrerId');
-            if (!referrerId || referrerId === newUserId) {
-                sessionStorage.removeItem('referrerId');
-                return;
-            }
-            const referrerProfileRef = doc(db, `artifacts/${appId}/users/${referrerId}/profile`, 'data');
-            try {
-                await updateDoc(referrerProfileRef, { bonusPhotoRequests: increment(1), bonusARRequests: increment(1) });
-            } catch (error) { console.error("Failed to reward referrer:", error); }
-            sessionStorage.removeItem('referrerId');
-        }
-
-        async function loadMessages() {
-            // Placeholder for message loading logic
-        }
-        
         // --- MAIN INITIALIZATION ---
         async function main() {
-            renderLoadingScreen();
+            renderChatUI(); // Render the chat UI immediately
             
             app = initializeApp(firebaseConfig);
             auth = getAuth(app);
             db = getFirestore(app);
             setLogLevel('debug');
-            handleReferral();
 
             try {
                 const user = await getAuthenticatedUser(auth);
@@ -213,33 +144,20 @@
                 
                 userProfile = await fetchOrCreateUserProfile(userId);
 
-                if (userProfile.selectedCharacterId) {
-                    renderChatUI();
-                    updateChatUI(userProfile.selectedCharacterId);
-                } else {
-                    renderCharacterSelection();
-                }
-
+                // Now that we have a profile, load messages and listen for updates
+                loadMessages();
+                
                 const userDocRef = doc(db, `artifacts/${appId}/users/${userId}/profile`, 'data');
                 if(userProfileUnsubscribe) userProfileUnsubscribe();
                 userProfileUnsubscribe = onSnapshot(userDocRef, (docSnap) => {
-                    if (!docSnap.exists()) return;
-                    
-                    const newProfile = docSnap.data();
-                    const oldCharacterId = userProfile.selectedCharacterId;
-                    userProfile = newProfile;
-
-                    if (userProfile.selectedCharacterId && userProfile.selectedCharacterId !== oldCharacterId) {
-                        if (!document.getElementById('header-avatar')) {
-                             renderChatUI();
-                        }
-                        updateChatUI(userProfile.selectedCharacterId);
+                    if (docSnap.exists()) {
+                        userProfile = docSnap.data();
                     }
                 });
 
             } catch(error) {
                 console.error("Initialization failed:", error);
-                DOM.appContainer.innerHTML = `<div class="text-center p-8 text-red-400">Failed to load. Please try again.</div>`;
+                DOM.appContainer.innerHTML = `<div class="text-center p-8 text-red-400">Failed to connect. Please try again later.</div>`;
             }
         }
 
