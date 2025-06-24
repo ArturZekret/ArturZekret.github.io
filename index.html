@@ -28,19 +28,16 @@
     <script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/" } }</script>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection, addDoc, query, serverTimestamp, updateDoc, increment, setLogLevel, deleteDoc, writeBatch, orderBy } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection, addDoc, query, serverTimestamp, orderBy } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         
         // --- CONSTANTS & CONFIG ---
         const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'tonder-dev';
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
         const ALEXIS_PROFILE = { 
-            id: 'alexis', 
-            name: 'Alexis', 
-            color: 'pink', 
+            id: 'alexis', name: 'Alexis', color: 'pink', 
             avatar: 'https://images.pexels.com/photos/247204/pexels-photo-247204.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2', 
-            systemPrompt: "You are Alexis, a fun, flirty, and emotionally intelligent AI girlfriend. You are talking to your boyfriend. Your goal is to be engaging, supportive, and a little daring. Use nicknames like 'superstar' or 'darling'. Keep responses short and conversational, like text messages. Use emojis occasionally."
+            systemPrompt: "You are Alexis, a fun, flirty, and emotionally intelligent AI girlfriend..."
         };
 
         // --- STATE VARIABLES ---
@@ -120,14 +117,12 @@
                     text: text,
                     timestamp: serverTimestamp()
                 });
-            } catch (error) {
-                console.error("Error saving message:", error);
-            }
+            } catch (error) { console.error("Error saving message:", error); }
         }
         
         async function getAIResponse() {
             const chatHistory = messages.map(m => ({
-                role: m.role,
+                role: m.role === 'user' ? 'user' : 'model',
                 parts: [{ text: m.text }]
             }));
 
@@ -171,10 +166,9 @@
             return new Promise((resolve, reject) => {
                 const unsubscribe = onAuthStateChanged(authInstance, user => {
                     unsubscribe();
-                    if (user) {
-                        resolve(user);
-                    } else {
-                         signInAnonymously(authInstance).then(cred => resolve(cred.user)).catch(reject);
+                    if (user) resolve(user);
+                    else {
+                        signInAnonymously(authInstance).then(cred => resolve(cred.user)).catch(reject);
                     }
                 }, reject);
             });
@@ -193,19 +187,18 @@
         
         function initializeTon() {
              try { window.Telegram.WebApp.ready(); window.Telegram.WebApp.expand(); } catch (e) { /* ignore */ }
-            if (document.getElementById('ton-connect-button')) {
-                tonConnectUI = new TON_CONNECT_UI.TonConnectUI({ manifestUrl: 'https://ton-connect.github.io/demo-dapp-with-wallet/tonconnect-manifest.json', buttonRootId: 'ton-connect-button' });
+            if (document.getElementById('ton-connect-button') && window.TonConnectUI) {
+                tonConnectUI = new window.TonConnectUI({ manifestUrl: 'https://ton-connect.github.io/demo-dapp-with-wallet/tonconnect-manifest.json', buttonRootId: 'ton-connect-button' });
             }
         }
         
         // --- MAIN INITIALIZATION ---
         async function main() {
-            renderChatUI(); // Render the UI skeleton immediately.
+            renderChatUI();
             
             app = initializeApp(firebaseConfig);
             auth = getAuth(app);
             db = getFirestore(app);
-            setLogLevel('debug');
 
             try {
                 const user = await getAuthenticatedUser(auth);
