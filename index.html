@@ -29,15 +29,12 @@
 <body class="bg-slate-900 text-white flex flex-col h-screen overflow-hidden">
     
     <div id="app-container" class="flex flex-col h-full">
-        <!-- App content is rendered by JS -->
+        <!-- App content will be rendered here by JavaScript -->
     </div>
 
-    <!-- Modals (Structure only) -->
-    <div id="character-modal" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-50 hidden modal-backdrop"></div>
-    <div id="premium-modal" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-50 hidden modal-backdrop"></div>
-    <div id="referral-modal" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-50 hidden modal-backdrop"></div>
+    <!-- Modals will be dynamically created when needed -->
+    <div id="modal-container"></div>
     <div id="ar-container" class="hidden"></div>
-
 
     <script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/" } }</script>
     <script type="module">
@@ -58,7 +55,7 @@
 
         // --- STATE VARIABLES ---
         let app, auth, db, userId, tonConnectUI;
-        let messagesUnsubscribe = null, userProfileUnsubscribe = null;
+        let userProfileUnsubscribe = null;
         let userProfile = {};
         let currentCharacter = {};
         
@@ -160,8 +157,7 @@
             const userDocRef = doc(db, `artifacts/${appId}/users/${uid}/profile`, 'data');
             let docSnap = await getDoc(userDocRef);
             if (!docSnap.exists()) {
-                const today = new Date().toISOString().slice(0, 10);
-                const newUserProfile = { selectedCharacterId: null, dailyAllowance: { date: today, photosUsed: 0, arUsed: 0 } };
+                const newUserProfile = { selectedCharacterId: null };
                 await setDoc(userDocRef, newUserProfile);
                 await processReferral(uid);
                 return newUserProfile;
@@ -228,8 +224,11 @@
                 if(userProfileUnsubscribe) userProfileUnsubscribe();
                 userProfileUnsubscribe = onSnapshot(userDocRef, (docSnap) => {
                     if (!docSnap.exists()) return;
+                    
+                    const newProfile = docSnap.data();
                     const oldCharacterId = userProfile.selectedCharacterId;
-                    userProfile = docSnap.data();
+                    userProfile = newProfile;
+
                     if (userProfile.selectedCharacterId && userProfile.selectedCharacterId !== oldCharacterId) {
                         if (!document.getElementById('header-avatar')) {
                              renderChatUI();
