@@ -25,9 +25,9 @@
         import { getFirestore, doc, onSnapshot, collection, addDoc, query, serverTimestamp, orderBy, limit } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         
         // --- SENIOR DEVELOPER NOTE ---
-        // This is the definitive, re-architected version. It removes Firebase Authentication
-        // to eliminate connection issues and uses a stable, local user ID instead.
-        // The security rules for Firestore must be updated for this code to work.
+        // This is the definitive, re-architected version. It fixes the UI feedback loop and provides
+        // clear error handling for the "permission-denied" issue, which must be resolved
+        // by updating the Firestore security rules as instructed.
 
         // --- FIREBASE CONFIGURATION ---
         const firebaseConfig = {
@@ -101,8 +101,42 @@
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
         }
 
-        function renderError(message) {
-            DOM.appContainer.innerHTML = `<div class="flex items-center justify-center h-full p-8 text-center text-amber-300 bg-slate-800"><div><h2 class="text-2xl font-bold mb-4">An Error Occurred</h2><p>${message}</p></div></div>`;
+        function renderError(message, isConfigError = false) {
+             let errorHtml = `
+                <div class="flex items-center justify-center h-full p-8 text-center text-amber-300 bg-slate-800">
+                    <div>
+                        <h2 class="text-2xl font-bold mb-4">An Error Occurred</h2>
+                        <p>${message}</p>
+                    </div>
+                </div>`;
+            
+            if (isConfigError) {
+                errorHtml = `
+                <div class="flex items-center justify-center h-full p-4 md:p-8 text-center text-amber-300 bg-slate-800">
+                    <div>
+                        <h2 class="text-2xl font-bold mb-4">Action Required: Update Database Rules</h2>
+                        <p class="mb-6">The app is connected but doesn't have permission to save messages. Please update your Firestore security rules.</p>
+                        <ol class="text-left space-y-3 text-slate-200 bg-slate-900 p-4 rounded-lg">
+                            <li>1. Go to the <a href="https://console.firebase.google.com/" target="_blank" class="text-pink-400 underline">Firebase Console</a> and select your project: <strong class="text-white">${appId}</strong></li>
+                            <li>2. In the left menu (under "Build"), click <strong class="text-white">Firestore Database</strong>.</li>
+                            <li>3. Click the <strong class="text-white">Rules</strong> tab at the top.</li>
+                            <li>4. Delete all existing text and replace it with:
+                                <pre class="bg-black text-white p-2 rounded mt-2 text-sm"><code>rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{userId}/{documents=**} {
+      allow read, write: if true;
+    }
+  }
+}</code></pre>
+                            </li>
+                            <li>5. Click the <strong class="text-white">Publish</strong> button.</li>
+                        </ol>
+                        <p class="mt-6 text-slate-400">After publishing, please refresh this page.</p>
+                    </div>
+                </div>`;
+            }
+            DOM.appContainer.innerHTML = errorHtml;
         }
 
         // --- EVENT LISTENERS ---
@@ -135,24 +169,23 @@
         async function saveMessage(role, text) {
             if (!userId) return;
             try {
+                // Optimistic UI update
+                messages.push({ role: role, text: text, timestamp: new Date() });
+                renderMessages();
+
                 await addDoc(collection(db, `users/${userId}/messages`), {
                     role, text, timestamp: serverTimestamp()
                 });
             } catch (error) { 
                 console.error("Error saving message:", error); 
                 if (error.code === 'permission-denied') {
-                    renderError("Your database security rules are blocking access. Please update them in your Firebase Console and refresh.");
+                    renderError("Your database security rules are blocking access. Please follow the steps on the screen.", true);
                 }
             }
         }
         
         async function getAIResponse() {
-            if (!GEMINI_API_KEY || GEMINI_API_KEY === "YOUR_GOOGLE_AI_API_KEY") {
-                renderError("The Google AI API Key is not configured. Please add it to the index.html file.");
-                return;
-            }
-
-            const chatHistory = messages.slice(-10).map(msg => ({ // Send last 10 messages for context
+            const chatHistory = messages.slice(-10).map(msg => ({ 
                 role: msg.role === 'user' ? 'user' : 'model',
                 parts: [{ text: msg.text }]
             }));
@@ -194,15 +227,17 @@
             const q = query(collection(db, `users/${userId}/messages`), orderBy("timestamp", "desc"), limit(50));
             if (messagesUnsubscribe) messagesUnsubscribe();
             messagesUnsubscribe = onSnapshot(q, (snapshot) => {
-                messages = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })).reverse();
+                const serverMessages = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })).reverse();
+                messages = serverMessages; // Replace local messages with server state
                 renderMessages();
+                
                 if(messages.length === 0) {
                     saveMessage('assistant', "Hey there, superstar! Ready to start our little adventure? 😉");
                 }
             }, (error) => {
                 console.error("Error loading messages:", error);
                 if(error.code === 'permission-denied') {
-                    renderError("Your database security rules are blocking access. Please update them in your Firebase Console and refresh.");
+                    renderError("Your database security rules are blocking access. Please follow the steps on the screen.", true);
                 }
             });
         }
