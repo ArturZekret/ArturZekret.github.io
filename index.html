@@ -196,14 +196,25 @@
 
                     const characterId = card.dataset.character;
 
-                    // Wait for userId if it's not ready
+                    const selectCharacter = async () => {
+                        try {
+                            const userDocRef = doc(db, `artifacts/${appId}/users/${userId}/profile`, 'data');
+                            // Use set with merge to create or update the doc safely
+                            await setDoc(userDocRef, { selectedCharacterId: characterId }, { merge: true });
+                            // The onSnapshot listener will handle showing the chat UI, ensuring data consistency.
+                        } catch (error) {
+                            console.error("Error updating character:", error);
+                             document.querySelectorAll('.character-card').forEach(c => c.classList.remove('opacity-50', 'pointer-events-none', 'processing'));
+                        }
+                    };
+
                     if (!userId) {
                         let attempts = 0;
-                        const maxAttempts = 20; // Wait for 5 seconds
+                        const maxAttempts = 20;
                         const interval = setInterval(async () => {
                             if (userId) {
                                 clearInterval(interval);
-                                await updateUserCharacter(characterId);
+                                await selectCharacter();
                             } else if (attempts++ > maxAttempts) {
                                 clearInterval(interval);
                                 console.error("Authentication timed out.");
@@ -211,24 +222,10 @@
                             }
                         }, 250);
                     } else {
-                        await updateUserCharacter(characterId);
+                        await selectCharacter();
                     }
                 });
             });
-        }
-
-        async function updateUserCharacter(characterId) {
-             if (!userId) return;
-             try {
-                const userDocRef = doc(db, `artifacts/${appId}/users/${userId}/profile`, 'data');
-                await updateDoc(userDocRef, { selectedCharacterId: characterId });
-                // Manually trigger UI change for immediate feedback instead of waiting for snapshot
-                loadChatUI(characterId);
-             } catch (error) {
-                console.error("Error updating character:", error);
-                // Re-enable cards if there was an error
-                document.querySelectorAll('.character-card').forEach(c => c.classList.remove('opacity-50', 'pointer-events-none', 'processing'));
-             }
         }
 
         function loadChatUI(characterId) {
@@ -264,11 +261,12 @@
                     await processReferral(userId);
                 } else {
                     userProfile = docSnap.data();
-                    if (userProfile.selectedCharacterId && !DOM.appContainer.classList.contains('flex')) {
+                    if (userProfile.selectedCharacterId) {
                         loadChatUI(userProfile.selectedCharacterId);
-                    } else if (!userProfile.selectedCharacterId) {
+                    } else {
                         DOM.characterSelection.classList.remove('hidden');
                         DOM.appContainer.classList.add('hidden');
+                         document.querySelectorAll('.character-card').forEach(c => c.classList.remove('opacity-50', 'pointer-events-none', 'processing'));
                     }
                     await checkAndResetDailyAllowance();
                 }
