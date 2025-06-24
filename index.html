@@ -17,10 +17,6 @@
         .message-bubble.entering { transform: scale(0.9); opacity: 0; }
         #ton-connect-button button { background-color: #ec4899; color: white; border: none; border-radius: 9999px; padding: 0.5rem 1rem; font-weight: 600; transition: background-color 0.3s; }
         #ton-connect-button button:hover { background-color: #db2777; }
-        .modal-backdrop { transition: opacity 0.3s ease-in-out; }
-        .modal-content { transition: transform 0.3s ease-in-out, opacity 0.3s ease-in-out; }
-        .photo-loading-shimmer { background: linear-gradient(110deg, #334155 8%, #475569 18%, #334155 33%); background-size: 200% 100%; animation: 1.5s shimmer linear infinite; }
-        @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
     </style>
 </head>
 <body class="bg-slate-900 text-white flex flex-col h-screen overflow-hidden">
@@ -29,7 +25,6 @@
         <!-- App content is rendered by JS -->
     </div>
 
-    <!-- Modals will be dynamically created by JS -->
     <div id="modal-container"></div>
     <div id="ar-container" class="hidden"></div>
 
@@ -45,9 +40,7 @@
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
         const VEERL_WALLET_ADDRESS = "UQA73babAdgu7g7H4Kicq_HCc22isaRlfck-DbQH6yVhXmid";
         const ALEXIS_PROFILE = { 
-            id: 'alexis', 
-            name: 'Alexis', 
-            color: 'pink', 
+            id: 'alexis', name: 'Alexis', color: 'pink', 
             avatar: 'https://images.pexels.com/photos/247204/pexels-photo-247204.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2', 
             systemPrompt: "You are Alexis, a fun, flirty, and emotionally intelligent AI girlfriend..."
         };
@@ -78,7 +71,7 @@
                 </footer>`;
         }
 
-        function loadMessages() { /* Placeholder for message loading logic */ }
+        function loadMessages() { /* Placeholder */ }
 
         // --- EVENT LISTENERS ---
         function setupEventListeners() {
@@ -89,9 +82,7 @@
                     const input = document.getElementById('message-input');
                     const text = input.value.trim();
                     if (text && userId) {
-                        // saveMessage('user', text);
                         input.value = '';
-                        // getAIResponse();
                     }
                 });
             }
@@ -105,7 +96,7 @@
                     if (user) {
                         resolve(user);
                     } else {
-                        signInAnonymously(authInstance).then(cred => resolve(cred.user)).catch(reject);
+                         signInAnonymously(authInstance).then(cred => resolve(cred.user)).catch(reject);
                     }
                 }, reject);
             });
@@ -115,7 +106,7 @@
             const userDocRef = doc(db, `artifacts/${appId}/users/${uid}/profile`, 'data');
             let docSnap = await getDoc(userDocRef);
             if (!docSnap.exists()) {
-                const newUserProfile = { createdAt: serverTimestamp() }; // Simplified profile
+                const newUserProfile = { createdAt: serverTimestamp() };
                 await setDoc(userDocRef, newUserProfile);
                 return newUserProfile;
             }
@@ -131,7 +122,7 @@
         
         // --- MAIN INITIALIZATION ---
         async function main() {
-            renderChatUI(); // Render the chat UI immediately
+            renderChatUI(); // Render the UI skeleton immediately.
             
             app = initializeApp(firebaseConfig);
             auth = getAuth(app);
@@ -143,21 +134,16 @@
                 userId = user.uid;
                 
                 userProfile = await fetchOrCreateUserProfile(userId);
-
-                // Now that we have a profile, load messages and listen for updates
+                
+                initializeTon();
+                setupEventListeners();
                 loadMessages();
                 
                 const userDocRef = doc(db, `artifacts/${appId}/users/${userId}/profile`, 'data');
                 if(userProfileUnsubscribe) userProfileUnsubscribe();
                 userProfileUnsubscribe = onSnapshot(userDocRef, (docSnap) => {
-                    if (docSnap.exists()) {
-                        userProfile = docSnap.data();
-                    }
+                    if (docSnap.exists()) userProfile = docSnap.data();
                 });
-                
-                // Finalize UI setup after everything is loaded
-                initializeTon();
-                setupEventListeners();
 
             } catch(error) {
                 console.error("Initialization failed:", error);
