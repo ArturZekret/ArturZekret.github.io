@@ -219,9 +219,16 @@
 
         async function updateUserCharacter(characterId) {
              if (!userId) return;
-             const userDocRef = doc(db, `artifacts/${appId}/users/${userId}/profile`, 'data');
-             await updateDoc(userDocRef, { selectedCharacterId: characterId });
-             // onSnapshot will now handle calling loadChatUI
+             try {
+                const userDocRef = doc(db, `artifacts/${appId}/users/${userId}/profile`, 'data');
+                await updateDoc(userDocRef, { selectedCharacterId: characterId });
+                // Manually trigger UI change for immediate feedback instead of waiting for snapshot
+                loadChatUI(characterId);
+             } catch (error) {
+                console.error("Error updating character:", error);
+                // Re-enable cards if there was an error
+                document.querySelectorAll('.character-card').forEach(c => c.classList.remove('opacity-50', 'pointer-events-none', 'processing'));
+             }
         }
 
         function loadChatUI(characterId) {
@@ -257,9 +264,9 @@
                     await processReferral(userId);
                 } else {
                     userProfile = docSnap.data();
-                    if (userProfile.selectedCharacterId) {
+                    if (userProfile.selectedCharacterId && !DOM.appContainer.classList.contains('flex')) {
                         loadChatUI(userProfile.selectedCharacterId);
-                    } else {
+                    } else if (!userProfile.selectedCharacterId) {
                         DOM.characterSelection.classList.remove('hidden');
                         DOM.appContainer.classList.add('hidden');
                     }
@@ -336,4 +343,4 @@
 
     </script>
 </body>
-</ht
+</html>
