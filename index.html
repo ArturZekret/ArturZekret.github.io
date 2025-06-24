@@ -3,20 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Tonder - AI/AR Girlfriend Experience</title>
+    <title>Tonder - AI Girlfriend Experience</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://unpkg.com/@tonconnect/ui@latest/dist/tonconnect-ui.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
     <style>
         body { font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; }
         #messages::-webkit-scrollbar { width: 4px; }
         #messages::-webkit-scrollbar-track { background: #1e1b4b; }
         #messages::-webkit-scrollbar-thumb { background: #4f46e5; border-radius: 20px; }
-        .message-bubble { transition: transform 0.2s ease-out, opacity 0.2s ease-out; }
-        .message-bubble.entering { transform: scale(0.9); opacity: 0; }
-        #ton-connect-button button { background-color: #ec4899; color: white; border: none; border-radius: 9999px; padding: 0.5rem 1rem; font-weight: 600; transition: background-color 0.3s; }
-        #ton-connect-button button:hover { background-color: #db2777; }
     </style>
 </head>
 <body class="bg-slate-900 text-white flex flex-col h-screen overflow-hidden">
@@ -25,25 +20,37 @@
         <!-- App content is rendered by JS -->
     </div>
 
-    <script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/" } }</script>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection, addDoc, query, serverTimestamp, orderBy, limit } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         
-        // --- CONSTANTS & CONFIG ---
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'tonder-dev';
+        // --- SENIOR DEVELOPER NOTE ---
+        // This is the definitive, re-architected version. It removes Firebase Authentication
+        // entirely to eliminate the persistent connection issues. It now uses a local user ID.
+        // This code MUST be used with the new Firestore security rules provided.
+
+        // --- FIREBASE CONFIGURATION ---
+        const firebaseConfig = {
+          apiKey: "AIzaSyD_Vhy_3GGIa81brbIl9C_ol-r3h1Qu0Uo",
+          authDomain: "tonder-a4ea2.firebaseapp.com",
+          projectId: "tonder-a4ea2",
+          storageBucket: "tonder-a4ea2.appspot.com",
+          messagingSenderId: "117570408396",
+          appId: "1:117570408396:web:1c43b11a42f6f303cd1769",
+          measurementId: "G-DZ6DTG6LZT"
+        };
+
+        // --- CONSTANTS ---
+        const appId = firebaseConfig.projectId;
         const ALEXIS_PROFILE = { 
-            id: 'alexis', name: 'Alexis', color: 'pink', 
+            name: 'Alexis', 
             avatar: 'https://images.pexels.com/photos/247204/pexels-photo-247204.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2', 
-            systemPrompt: "You are Alexis, a fun, flirty, and emotionally intelligent AI girlfriend. You are talking to your boyfriend. Your goal is to be engaging, supportive, and a little daring. Use nicknames like 'superstar' or 'darling'. Keep responses short and conversational, like text messages. Use emojis occasionally."
+            systemPrompt: "You are Alexis, a fun, flirty, and emotionally intelligent AI girlfriend..."
         };
 
         // --- STATE VARIABLES ---
-        let app, auth, db, userId, tonConnectUI;
-        let messagesUnsubscribe = null, userProfileUnsubscribe = null;
-        let userProfile = {};
+        let app, db, userId;
+        let messagesUnsubscribe = null;
         let messages = [];
         
         const DOM = { appContainer: document.getElementById('app-container') };
@@ -53,8 +60,8 @@
             DOM.appContainer.innerHTML = `
                 <header class="bg-slate-800/50 backdrop-blur-sm border-b border-slate-700 p-3 flex items-center justify-between shadow-lg z-10">
                     <div class="flex items-center space-x-3">
-                        <img id="header-avatar" src="${ALEXIS_PROFILE.avatar}" alt="AI Girlfriend" class="w-10 h-10 rounded-full border-2 border-pink-400 object-cover">
-                        <div><h1 id="header-name" class="text-lg font-bold text-pink-400">${ALEXIS_PROFILE.name}</h1></div>
+                        <img src="${ALEXIS_PROFILE.avatar}" alt="AI Girlfriend" class="w-10 h-10 rounded-full border-2 border-pink-400 object-cover">
+                        <div><h1 class="text-lg font-bold text-pink-400">${ALEXIS_PROFILE.name}</h1></div>
                     </div>
                     <div id="ton-connect-button"></div>
                 </header>
@@ -91,6 +98,10 @@
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
         }
 
+        function renderError(message) {
+            DOM.appContainer.innerHTML = `<div class="flex items-center justify-center h-full p-8 text-center text-amber-300 bg-slate-800"><div><h2 class="text-2xl font-bold mb-4">An Error Occurred</h2><p>${message}</p></div></div>`;
+        }
+
         // --- EVENT LISTENERS ---
         function setupEventListeners() {
             const messageForm = document.getElementById('message-form');
@@ -101,10 +112,6 @@
                     const text = input.value.trim();
                     if (text && userId) {
                         input.value = '';
-                        // Optimistic UI update
-                        messages.push({ role: 'user', text: text, timestamp: new Date() });
-                        renderMessages();
-                        
                         await saveMessage('user', text);
                         await getAIResponse();
                     }
@@ -112,40 +119,32 @@
             }
         }
         
-        // --- FIREBASE & CORE LOGIC ---
+        // --- CORE LOGIC ---
+        function getOrCreateLocalUserId() {
+            let localId = localStorage.getItem('tonder-user-id');
+            if (!localId) {
+                localId = crypto.randomUUID();
+                localStorage.setItem('tonder-user-id', localId);
+            }
+            return localId;
+        }
+        
         async function saveMessage(role, text) {
             if (!userId) return;
             try {
-                await addDoc(collection(db, `artifacts/${appId}/users/${userId}/messages`), {
-                    role: role,
-                    text: text,
-                    timestamp: serverTimestamp()
+                await addDoc(collection(db, `users/${userId}/messages`), {
+                    role, text, timestamp: serverTimestamp()
                 });
             } catch (error) { console.error("Error saving message:", error); }
         }
         
         async function getAIResponse() {
-            const chatHistory = messages.map(m => ({
-                role: m.role === 'user' ? 'user' : 'model',
-                parts: [{ text: m.text }]
-            }));
-
-            const payload = {
-                contents: [
-                    { role: "user", parts: [{ text: ALEXIS_PROFILE.systemPrompt }] },
-                    { role: "model", parts: [{ text: "Understood." }] },
-                    ...chatHistory
-                ]
-            };
-
+            const chatHistory = messages.map(m => ({ role: m.role, parts: [{ text: m.text }] }));
+            const payload = { contents: [ { role: "user", parts: [{ text: ALEXIS_PROFILE.systemPrompt }] }, { role: "model", parts: [{ text: "Understood." }] }, ...chatHistory ] };
             try {
                 const apiKey = "";
                 const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
-                const response = await fetch(apiUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
+                const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
                 if (!response.ok) throw new Error(`API Error: ${response.statusText}`);
                 const result = await response.json();
                 const aiText = result.candidates?.[0]?.content?.parts?.[0]?.text || "I'm not sure what to say...";
@@ -158,80 +157,49 @@
         
         function loadMessages() {
             if (!userId) return;
-            const q = query(collection(db, `artifacts/${appId}/users/${userId}/messages`), orderBy("timestamp"));
+            const q = query(collection(db, `users/${userId}/messages`), orderBy("timestamp", "desc"), limit(50));
             if (messagesUnsubscribe) messagesUnsubscribe();
             messagesUnsubscribe = onSnapshot(q, (snapshot) => {
-                messages = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                messages = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })).reverse();
                 renderMessages();
-                
-                // Send welcome message if chat is empty
                 if(messages.length === 0) {
                     saveMessage('assistant', "Hey there, superstar! Ready to start our little adventure? 😉");
                 }
             });
         }
         
-        function getAuthenticatedUser(authInstance) {
-            return new Promise((resolve, reject) => {
-                const unsubscribe = onAuthStateChanged(authInstance, user => {
-                    unsubscribe();
-                    if (user) resolve(user);
-                    else {
-                        signInAnonymously(authInstance).then(cred => resolve(cred.user)).catch(reject);
-                    }
-                }, reject);
-            });
-        }
-        
-        async function fetchOrCreateUserProfile(uid) {
-            const userDocRef = doc(db, `artifacts/${appId}/users/${uid}/profile`, 'data');
-            let docSnap = await getDoc(userDocRef);
-            if (!docSnap.exists()) {
-                const newUserProfile = { createdAt: serverTimestamp() };
-                await setDoc(userDocRef, newUserProfile);
-                return newUserProfile;
-            }
-            return docSnap.data();
-        }
-        
         function initializeTon() {
              try { window.Telegram.WebApp.ready(); window.Telegram.WebApp.expand(); } catch (e) { /* ignore */ }
             if (document.getElementById('ton-connect-button') && window.TonConnectUI) {
-                tonConnectUI = new window.TonConnectUI({ manifestUrl: 'https://ton-connect.github.io/demo-dapp-with-wallet/tonconnect-manifest.json', buttonRootId: 'ton-connect-button' });
+                new window.TonConnectUI({ manifestUrl: 'https://ton-connect.github.io/demo-dapp-with-wallet/tonconnect-manifest.json', buttonRootId: 'ton-connect-button' });
             }
         }
         
         // --- MAIN INITIALIZATION ---
-        async function main() {
+        function main() {
             renderChatUI();
             
-            app = initializeApp(firebaseConfig);
-            auth = getAuth(app);
-            db = getFirestore(app);
-
             try {
-                const user = await getAuthenticatedUser(auth);
-                userId = user.uid;
-                
-                userProfile = await fetchOrCreateUserProfile(userId);
-                
+                if (!firebaseConfig || !firebaseConfig.apiKey || firebaseConfig.apiKey.includes("AIza....")) {
+                    renderError("Firebase is not configured. Please paste your Firebase config object into the HTML file.");
+                    return;
+                }
+
+                app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                userId = getOrCreateLocalUserId();
+
                 initializeTon();
                 setupEventListeners();
                 loadMessages();
-                
-                const userDocRef = doc(db, `artifacts/${appId}/users/${userId}/profile`, 'data');
-                if(userProfileUnsubscribe) userProfileUnsubscribe();
-                userProfileUnsubscribe = onSnapshot(userDocRef, (docSnap) => {
-                    if (docSnap.exists()) userProfile = docSnap.data();
-                });
 
             } catch(error) {
                 console.error("Initialization failed:", error);
-                DOM.appContainer.innerHTML = `<div class="text-center p-8 text-red-400">Failed to connect. Please try again later.</div>`;
+                renderError(`Failed to load. Please check the console and Firebase configuration. Error: ${error.message}`);
             }
         }
 
-        main();
+        window.onload = main;
 
     </script>
 </body>
