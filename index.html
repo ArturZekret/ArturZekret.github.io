@@ -104,24 +104,8 @@
             premiumModal: document.getElementById('premium-modal'),
             referralModal: document.getElementById('referral-modal'),
         };
-
-        // --- ALL FUNCTION DEFINITIONS (Hoisted) ---
         
-        async function getAIResponse() { /* ... */ }
-        async function loadMessages() { /* ... */ }
-        async function handlePhotoRequest() { /* ... */ }
-        async function handleARRequest() { /* ... */ }
-        async function handlePayment() { /* ... */ }
-        async function showPremiumModal() { /* ... */ }
-        async function showReferralModal() { /* ... */ }
-        async function copyReferralLink() { /* ... */ }
-        async function handleReferral() { /* ... */ }
-        async function processReferral() { /* ... */ }
-        async function checkAndResetDailyAllowance() { /* ... */ }
-        async function startAdventure() { /* ... */ }
-        function initAR() { /* ... */ }
-        
-        // UI RENDERING
+        // --- ALL FUNCTION DEFINITIONS ---
         function renderLoadingScreen() {
             DOM.appContainer.innerHTML = `
                 <div id="loading-screen" class="flex flex-col items-center justify-center h-full bg-gradient-to-br from-slate-900 to-indigo-900">
@@ -143,7 +127,7 @@
                         <p class="text-lg text-slate-300">Choose your AI Girlfriend experience.</p>
                     </div>
                     <div class="flex-grow flex items-center justify-center w-full px-4">
-                        <div id="char-select-card-container" class="flex space-x-6 pb-12 overflow-x-auto w-full md:grid md:grid-cols-3 md:gap-6 md:space-x-0 md:max-w-4xl">
+                        <div class="flex space-x-6 pb-12 overflow-x-auto w-full md:grid md:grid-cols-3 md:gap-6 md:space-x-0 md:max-w-4xl">
                             ${Object.values(CHARACTERS).map(char => `
                                 <div class="character-card bg-slate-800 rounded-2xl p-6 text-center cursor-pointer border-2 border-transparent hover:border-${char.color}-500 flex-shrink-0 w-80 md:w-auto" data-character="${char.id}">
                                     <img src="${char.avatar}" class="w-24 h-24 rounded-full mx-auto mb-4 border-4 border-slate-700 object-cover">
@@ -187,7 +171,9 @@
         }
 
         function loadChatUI(characterId) {
-            renderAppContainer();
+            if (!document.getElementById('header-avatar')) {
+                renderAppContainer();
+            }
             currentCharacter = CHARACTERS[characterId];
             const headerAvatar = document.getElementById('header-avatar');
             const headerName = document.getElementById('header-name');
@@ -215,7 +201,6 @@
             document.getElementById('close-character-modal-btn').addEventListener('click', () => hideModal(DOM.characterModal));
             document.getElementById('referral-btn').addEventListener('click', showReferralModal);
             document.getElementById('close-referral-modal-btn').addEventListener('click', () => hideModal(DOM.referralModal));
-            // ... other listeners ...
         }
 
         function setupCharacterSelectionListeners() {
@@ -229,7 +214,39 @@
                 });
             });
         }
-        
+
+        function showModal(modal) {
+             modal.classList.remove('hidden');
+             const content = modal.querySelector('.modal-content');
+             requestAnimationFrame(() => {
+                modal.classList.add('modal-backdrop');
+                if(content) content.classList.remove('scale-95', 'opacity-0');
+             });
+        }
+        function hideModal(modal) {
+            const content = modal.querySelector('.modal-content');
+            modal.classList.remove('modal-backdrop');
+            if(content) content.classList.add('scale-95', 'opacity-0');
+            setTimeout(() => modal.classList.add('hidden'), 300);
+        }
+
+        function showCharacterModal() {
+            const container = document.getElementById('character-card-container');
+            container.innerHTML = ''; 
+            Object.values(CHARACTERS).forEach(char => {
+                const card = document.createElement('div');
+                card.className = `character-card bg-slate-900 rounded-2xl p-6 text-center cursor-pointer border-2 border-transparent hover:border-${char.color}-500`;
+                card.dataset.character = char.id;
+                card.innerHTML = `<img src="${char.avatar}" class="w-24 h-24 rounded-full mx-auto mb-4 border-4 border-slate-700 object-cover"><h2 class="text-2xl font-bold text-${char.color}-400">${char.name}</h2><p class="text-slate-400 mt-2">${char.description}</p>`;
+                card.addEventListener('click', async () => {
+                    await updateDoc(doc(db, `artifacts/${appId}/users/${userId}/profile`, 'data'), { selectedCharacterId: char.id });
+                    hideModal(DOM.characterModal);
+                });
+                container.appendChild(card);
+            });
+            showModal(DOM.characterModal);
+        }
+
         async function checkUserProfileAndLaunch() {
             if (!userId) return;
             const userDocRef = doc(db, `artifacts/${appId}/users/${userId}/profile`, 'data');
@@ -291,16 +308,30 @@
                 }
             });
         }
-
-        function handleReferral() { /* ... */ }
         
         function main() {
             renderLoadingScreen();
-            initializeFirebase();
             handleReferral();
+            initializeFirebase();
         }
 
         main();
+
+        // --- All other functions ---
+        // These are hoisted due to the 'function' keyword, so they are available to the event listeners
+        async function getAIResponse() { /* ... */ }
+        async function loadMessages() { /* ... */ }
+        async function handlePhotoRequest() { /* ... */ }
+        async function handleARRequest() { /* ... */ }
+        async function handlePayment() { /* ... */ }
+        async function showPremiumModal() { /* ... */ }
+        async function showReferralModal() { /* ... */ }
+        async function copyReferralLink() { /* ... */ }
+        function handleReferral() { /* ... */ }
+        async function processReferral() { /* ... */ }
+        async function checkAndResetDailyAllowance() { /* ... */ }
+        async function startAdventure() { /* ... */ }
+        function initAR() { /* ... */ }
 
     </script>
 </body>
