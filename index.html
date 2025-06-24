@@ -30,27 +30,27 @@
 <body class="bg-slate-900 text-white flex flex-col h-screen overflow-hidden">
     
     <!-- Character Selection Screen -->
-    <div id="character-selection" class="flex flex-col items-center justify-center h-full bg-gradient-to-br from-slate-900 to-indigo-900">
-        <div class="text-center pt-8 px-4">
+    <div id="character-selection" class="flex flex-col h-screen bg-gradient-to-br from-slate-900 to-indigo-900 overflow-y-auto">
+        <div class="text-center pt-12 pb-6 px-4">
             <h1 class="text-4xl font-bold text-white mb-2">Welcome to Tonder</h1>
             <p class="text-lg text-slate-300">Choose your AI Girlfriend experience.</p>
         </div>
-        <div class="flex-1 flex items-center justify-center w-full min-h-0">
-            <div class="flex space-x-6 p-6 overflow-x-auto w-full md:grid md:grid-cols-3 md:gap-6 md:space-x-0 md:max-w-4xl">
+        <div class="flex-grow flex items-center justify-center w-full px-4">
+            <div class="flex space-x-6 pb-12 overflow-x-auto w-full md:grid md:grid-cols-3 md:gap-6 md:space-x-0 md:max-w-4xl">
                 <!-- Alexis -->
-                <div class="character-card bg-slate-800 rounded-2xl p-6 text-center cursor-pointer border-2 border-transparent hover:border-pink-500 flex-shrink-0 w-10/12 sm:w-3/4 md:w-auto" data-character="alexis">
+                <div class="character-card bg-slate-800 rounded-2xl p-6 text-center cursor-pointer border-2 border-transparent hover:border-pink-500 flex-shrink-0 w-80 md:w-auto" data-character="alexis">
                     <img src="https://images.pexels.com/photos/247204/pexels-photo-247204.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2" class="w-24 h-24 rounded-full mx-auto mb-4 border-4 border-slate-700 object-cover">
                     <h2 class="text-2xl font-bold text-pink-400">Alexis</h2>
                     <p class="text-slate-400 mt-2">The Intimate Girlfriend. Daring, playful, and always up for an adventure. Perfect for those who crave excitement and a passionate connection.</p>
                 </div>
                 <!-- Zoe -->
-                <div class="character-card bg-slate-800 rounded-2xl p-6 text-center cursor-pointer border-2 border-transparent hover:border-blue-500 flex-shrink-0 w-10/12 sm:w-3/4 md:w-auto" data-character="zoe">
+                <div class="character-card bg-slate-800 rounded-2xl p-6 text-center cursor-pointer border-2 border-transparent hover:border-blue-500 flex-shrink-0 w-80 md:w-auto" data-character="zoe">
                     <img src="https://images.pexels.com/photos/1462637/pexels-photo-1462637.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2" class="w-24 h-24 rounded-full mx-auto mb-4 border-4 border-slate-700 object-cover">
                     <h2 class="text-2xl font-bold text-blue-400">Zoe</h2>
                     <p class="text-slate-400 mt-2">The Companion. Cheerful, supportive, and your number one fan. She's like your best friend, always ready to share a laugh and make your day brighter.</p>
                 </div>
                 <!-- Luna -->
-                <div class="character-card bg-slate-800 rounded-2xl p-6 text-center cursor-pointer border-2 border-transparent hover:border-purple-500 flex-shrink-0 w-10/12 sm:w-3/4 md:w-auto" data-character="luna">
+                <div class="character-card bg-slate-800 rounded-2xl p-6 text-center cursor-pointer border-2 border-transparent hover:border-purple-500 flex-shrink-0 w-80 md:w-auto" data-character="luna">
                     <img src="https://images.pexels.com/photos/774909/pexels-photo-774909.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2" class="w-24 h-24 rounded-full mx-auto mb-4 border-4 border-slate-700 object-cover">
                     <h2 class="text-2xl font-bold text-purple-400">Luna</h2>
                     <p class="text-slate-400 mt-2">The Emotional Support. Deep, empathetic, and a great listener. Luna is here to understand your feelings and provide a safe space for genuine connection.</p>
@@ -188,17 +188,31 @@
         function setupCharacterSelection() {
             document.querySelectorAll('.character-card').forEach(card => {
                 card.addEventListener('click', async () => {
-                    if (card.classList.contains('processing') || !userId) {
-                        console.warn("Processing or user not authenticated yet.");
-                        return;
-                    }
-
+                    if (card.classList.contains('processing')) return;
+                    
                     document.querySelectorAll('.character-card').forEach(c => c.classList.add('opacity-50', 'pointer-events-none'));
                     card.classList.remove('opacity-50');
                     card.classList.add('processing');
 
                     const characterId = card.dataset.character;
-                    await updateUserCharacter(characterId);
+
+                    // Wait for userId if it's not ready
+                    if (!userId) {
+                        let attempts = 0;
+                        const maxAttempts = 20; // Wait for 5 seconds
+                        const interval = setInterval(async () => {
+                            if (userId) {
+                                clearInterval(interval);
+                                await updateUserCharacter(characterId);
+                            } else if (attempts++ > maxAttempts) {
+                                clearInterval(interval);
+                                console.error("Authentication timed out.");
+                                document.querySelectorAll('.character-card').forEach(c => c.classList.remove('opacity-50', 'pointer-events-none', 'processing'));
+                            }
+                        }, 250);
+                    } else {
+                        await updateUserCharacter(characterId);
+                    }
                 });
             });
         }
@@ -322,4 +336,4 @@
 
     </script>
 </body>
-</html>
+</ht
