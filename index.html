@@ -32,42 +32,10 @@
         <!-- App content is rendered by JS -->
     </div>
 
-    <!-- Modals -->
-    <div id="character-modal" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-50 hidden modal-backdrop">
-        <div class="bg-slate-800 rounded-2xl shadow-xl p-6 w-full max-w-4xl text-center border border-slate-700 modal-content scale-95 opacity-0">
-             <h2 class="text-2xl font-bold text-white mb-6">Switch Character</h2>
-             <div id="character-card-container" class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <!-- Character cards will be injected here -->
-             </div>
-             <button id="close-character-modal-btn" class="mt-6 text-slate-400 hover:text-white transition">Cancel</button>
-        </div>
-    </div>
-    <div id="premium-modal" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-50 hidden modal-backdrop">
-        <div class="bg-slate-800 rounded-2xl shadow-xl p-6 w-full max-w-sm text-center border border-slate-700 modal-content scale-95 opacity-0">
-            <h2 id="modal-title" class="text-2xl font-bold text-pink-400 mb-2">Unlock More!</h2>
-            <p id="modal-text" class="text-slate-300 mb-6"></p>
-            <div class="space-y-4">
-                <button id="subscribe-btn" class="w-full bg-pink-600 hover:bg-pink-700 text-white font-bold py-3 px-4 rounded-lg transition"></button>
-                <button id="one-time-purchase-btn" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-lg transition"></button>
-            </div>
-            <button id="close-modal-btn" class="mt-6 text-slate-400 hover:text-white transition">Maybe later</button>
-        </div>
-    </div>
-    <div id="referral-modal" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-50 hidden modal-backdrop">
-         <div class="bg-slate-800 rounded-2xl shadow-xl p-6 w-full max-w-sm text-center border border-slate-700 modal-content scale-95 opacity-0">
-             <h2 class="text-2xl font-bold text-green-400 mb-2">Be a Wingman!</h2>
-             <p class="text-slate-300 mb-4">Share your link with friends. When they join, you both get rewarded!</p>
-             <ul class="text-slate-400 text-sm list-disc list-inside mb-6 text-left">
-                 <li>Your friend gets a free welcome gift.</li>
-                 <li>You get **+1 free photo** and **+1 free AR scene** for each friend who joins!</li>
-             </ul>
-             <div class="flex items-center space-x-2">
-                 <input id="referral-link-input" type="text" readonly class="flex-1 bg-slate-700 border border-slate-600 rounded-lg p-2 text-sm">
-                 <button id="copy-link-btn" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg transition">Copy</button>
-             </div>
-             <button id="close-referral-modal-btn" class="mt-6 text-slate-400 hover:text-white transition">Close</button>
-         </div>
-    </div>
+    <!-- Modals (Structure only, content managed by JS) -->
+    <div id="character-modal" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-50 hidden modal-backdrop"></div>
+    <div id="premium-modal" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-50 hidden modal-backdrop"></div>
+    <div id="referral-modal" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-50 hidden modal-backdrop"></div>
     <div id="ar-container" class="hidden"></div>
 
 
@@ -96,14 +64,13 @@
         let messages = [], userProfile = {};
         let currentCharacter = {};
         
-        // --- DOM ELEMENTS CACHE ---
         const DOM = { appContainer: document.getElementById('app-container') };
 
         // --- ALL FUNCTION DEFINITIONS ---
         
         function renderLoadingScreen() {
             DOM.appContainer.innerHTML = `
-                <div id="loading-screen" class="flex flex-col items-center justify-center h-full bg-gradient-to-br from-slate-900 to-indigo-900">
+                <div class="flex flex-col items-center justify-center h-full bg-gradient-to-br from-slate-900 to-indigo-900">
                     <h1 class="text-4xl font-bold text-white mb-4">Tonder</h1>
                     <div class="flex items-center space-x-2">
                         <div class="w-3 h-3 bg-pink-400 rounded-full animate-bounce" style="animation-delay: -0.3s;"></div>
@@ -116,7 +83,7 @@
 
         function renderCharacterSelection() {
             DOM.appContainer.innerHTML = `
-                <div id="character-selection" class="flex flex-col h-screen bg-gradient-to-br from-slate-900 to-indigo-900 overflow-y-auto">
+                <div class="flex flex-col h-screen bg-gradient-to-br from-slate-900 to-indigo-900 overflow-y-auto">
                     <div class="text-center pt-12 pb-6 px-4">
                         <h1 class="text-4xl font-bold text-white mb-2">Welcome to Tonder</h1>
                         <p class="text-lg text-slate-300">Choose your AI Girlfriend experience.</p>
@@ -140,22 +107,19 @@
                 <header class="bg-slate-800/50 backdrop-blur-sm border-b border-slate-700 p-3 flex items-center justify-between shadow-lg z-10">
                     <div class="flex items-center space-x-3">
                         <img id="header-avatar" src="" alt="AI Girlfriend" class="w-10 h-10 rounded-full border-2 object-cover">
-                        <div>
-                            <h1 id="header-name" class="text-lg font-bold"></h1>
-                            <p id="status-indicator" class="text-xs text-green-400 flex items-center gap-1"><span class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span> Online</p>
-                        </div>
+                        <div><h1 id="header-name" class="text-lg font-bold"></h1></div>
                     </div>
                     <div class="flex items-center space-x-2">
-                        <button id="switch-char-btn" class="text-white bg-blue-500 hover:bg-blue-600 rounded-full p-2 transition shadow"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></button>
-                        <button id="referral-btn" class="text-white bg-green-500 hover:bg-green-600 rounded-full p-2 transition shadow"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12v1a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5V8a5 5 0 0 1 5-5h1"/><path d="M22 6l-6 6"/><path d="M22 10h-4v-4"/></svg></button>
+                        <button id="switch-char-btn" title="Switch Character" class="text-white bg-blue-500 hover:bg-blue-600 rounded-full p-2 transition shadow"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></button>
+                        <button id="referral-btn" title="Refer a Friend" class="text-white bg-green-500 hover:bg-green-600 rounded-full p-2 transition shadow"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12v1a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5V8a5 5 0 0 1 5-5h1"/><path d="M22 6l-6 6"/><path d="M22 10h-4v-4"/></svg></button>
                         <div id="ton-connect-button"></div>
                     </div>
                 </header>
                 <main id="messages" class="flex-1 p-4 space-y-4 overflow-y-auto"></main>
                 <footer class="p-4 bg-slate-800/70 backdrop-blur-sm border-t border-slate-700 z-10">
                     <form id="message-form" class="flex items-center space-x-2">
-                         <button type="button" id="ask-photo-btn" class="bg-pink-600 hover:bg-pink-700 rounded-full p-3 transition duration-300 shadow-md"><span class="text-xl">✨</span></button>
-                         <button type="button" id="ask-ar-btn" class="bg-purple-600 hover:bg-purple-700 rounded-full p-3 transition duration-300 shadow-md"><span class="text-xl">🔮</span></button>
+                         <button type="button" id="ask-photo-btn" title="Ask for Photo" class="bg-pink-600 hover:bg-pink-700 rounded-full p-3 transition duration-300 shadow-md"><span class="text-xl">✨</span></button>
+                         <button type="button" id="ask-ar-btn" title="AR Experience" class="bg-purple-600 hover:bg-purple-700 rounded-full p-3 transition duration-300 shadow-md"><span class="text-xl">🔮</span></button>
                         <input type="text" id="message-input" placeholder="Type your message..." autocomplete="off" class="flex-1 bg-slate-700 border border-slate-600 rounded-full py-3 px-5 focus:outline-none focus:ring-2 focus:ring-pink-500">
                         <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 rounded-full p-3 transition duration-300 shadow-md"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-white"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></button>
                     </form>
@@ -178,7 +142,7 @@
         }
         
         function setupEventListeners() {
-            // This function will now be reliably called after renderAppContainer
+            // This function is now reliably called after the DOM is ready
         }
 
         function setupCharacterSelectionListeners() {
@@ -226,6 +190,32 @@
             });
         }
 
+        function handleReferral() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const referrerId = urlParams.get('ref');
+            if (referrerId) {
+                sessionStorage.setItem('referrerId', referrerId);
+            }
+        }
+
+        async function processReferral(newUserId) {
+            const referrerId = sessionStorage.getItem('referrerId');
+            if (!referrerId || referrerId === newUserId) {
+                sessionStorage.removeItem('referrerId');
+                return;
+            }
+            const referrerProfileRef = doc(db, `artifacts/${appId}/users/${referrerId}/profile`, 'data');
+            try {
+                await updateDoc(referrerProfileRef, {
+                    bonusPhotoRequests: increment(1),
+                    bonusARRequests: increment(1)
+                });
+            } catch (error) {
+                console.error("Failed to reward referrer:", error);
+            }
+            sessionStorage.removeItem('referrerId');
+        }
+
         async function main() {
             renderLoadingScreen();
             
@@ -247,12 +237,12 @@
                     renderCharacterSelection();
                 }
 
-                // Attach snapshot listener for real-time updates
                 const userDocRef = doc(db, `artifacts/${appId}/users/${userId}/profile`, 'data');
                 if(userProfileUnsubscribe) userProfileUnsubscribe();
-                userProfileUnsubscribe = onSnapshot(userDocRef, (doc) => {
+                userProfileUnsubscribe = onSnapshot(userDocRef, (docSnap) => {
+                    if (!docSnap.exists()) return;
                     const oldCharacterId = userProfile.selectedCharacterId;
-                    userProfile = doc.data();
+                    userProfile = docSnap.data();
                     if (userProfile.selectedCharacterId && userProfile.selectedCharacterId !== oldCharacterId) {
                         loadChatUI(userProfile.selectedCharacterId);
                     }
@@ -260,42 +250,16 @@
 
             } catch(error) {
                 console.error("Initialization failed:", error);
-                document.getElementById('app-container').innerHTML = `<div class="text-center p-8 text-red-400">Failed to load. Please try again.</div>`;
+                DOM.appContainer.innerHTML = `<div class="text-center p-8 text-red-400">Failed to load. Please try again.</div>`;
             }
         }
-
-        function handleReferral() {
-            const urlParams = new URLSearchParams(window.location.search);
-            const referrerId = urlParams.get('ref');
-            if (referrerId) {
-                sessionStorage.setItem('referrerId', referrerId);
-            }
-        }
-
-        async function processReferral(newUserId) {
-            const referrerId = sessionStorage.getItem('referrerId');
-            if (!referrerId || referrerId === newUserId) {
-                sessionStorage.removeItem('referrerId');
-                return;
-            }
-            const referrerProfileRef = doc(db, `artifacts/${appId}/users/${referrerId}/profile`, 'data');
-            try {
-                await updateDoc(referrerProfileRef, {
-                    bonusPhotoRequests: increment(1),
-                    bonusARRequests: increment(1)
-                });
-                console.log("Referrer rewarded.");
-            } catch (error) {
-                console.error("Failed to reward referrer:", error);
-            }
-            sessionStorage.removeItem('referrerId');
-        }
-
+        
+        // --- Other functions would be defined here ---
+        async function loadMessages() { /* ... */ }
+        async function getAIResponse() { /* ... */ }
+        
         main();
 
-        // --- ALL OTHER FUNCTIONS ---
-        // Placeholder for brevity, but all functions would be defined here in a real file.
-        // E.g., loadMessages, getAIResponse, handlePhotoRequest, etc.
     </script>
 </body>
 </html>
