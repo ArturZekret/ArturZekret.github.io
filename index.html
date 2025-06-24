@@ -190,21 +190,17 @@
                 card.addEventListener('click', async () => {
                     if (card.classList.contains('processing')) return;
                     
-                    document.querySelectorAll('.character-card').forEach(c => c.classList.add('opacity-50', 'pointer-events-none'));
-                    card.classList.remove('opacity-50');
-                    card.classList.add('processing');
+                    document.querySelectorAll('.character-card').forEach(c => c.classList.add('processing'));
 
                     const characterId = card.dataset.character;
 
                     const selectCharacter = async () => {
                         try {
                             const userDocRef = doc(db, `artifacts/${appId}/users/${userId}/profile`, 'data');
-                            // Use set with merge to create or update the doc safely
                             await setDoc(userDocRef, { selectedCharacterId: characterId }, { merge: true });
-                            // The onSnapshot listener will handle showing the chat UI, ensuring data consistency.
                         } catch (error) {
                             console.error("Error updating character:", error);
-                             document.querySelectorAll('.character-card').forEach(c => c.classList.remove('opacity-50', 'pointer-events-none', 'processing'));
+                             document.querySelectorAll('.character-card').forEach(c => c.classList.remove('processing'));
                         }
                     };
 
@@ -218,7 +214,7 @@
                             } else if (attempts++ > maxAttempts) {
                                 clearInterval(interval);
                                 console.error("Authentication timed out.");
-                                document.querySelectorAll('.character-card').forEach(c => c.classList.remove('opacity-50', 'pointer-events-none', 'processing'));
+                                document.querySelectorAll('.character-card').forEach(c => c.classList.remove('processing'));
                             }
                         }, 250);
                     } else {
@@ -234,7 +230,6 @@
             DOM.appContainer.classList.remove('hidden');
             DOM.appContainer.classList.add('flex');
             
-            // Update UI with character info
             DOM.headerAvatar.src = currentCharacter.avatar;
             DOM.headerName.textContent = currentCharacter.name;
             DOM.headerName.className = `text-lg font-bold text-${currentCharacter.color}-400`;
@@ -246,9 +241,10 @@
             const userDocRef = doc(db, `artifacts/${appId}/users/${userId}/profile`, 'data');
             if (userProfileUnsubscribe) userProfileUnsubscribe();
             userProfileUnsubscribe = onSnapshot(userDocRef, async (docSnap) => {
+                let profileData;
                 if (!docSnap.exists()) {
                     const today = new Date().toISOString().slice(0, 10);
-                    userProfile = {
+                    profileData = {
                         selectedCharacterId: null,
                         bonusPhotoRequests: 3,
                         bonusARRequests: 2,
@@ -257,19 +253,22 @@
                         completedAdventures: [],
                         dailyAllowance: { date: today, photosUsed: 0, arUsed: 0 }
                     };
-                    await setDoc(userDocRef, userProfile);
+                    await setDoc(userDocRef, profileData);
                     await processReferral(userId);
                 } else {
-                    userProfile = docSnap.data();
-                    if (userProfile.selectedCharacterId) {
-                        loadChatUI(userProfile.selectedCharacterId);
-                    } else {
-                        DOM.characterSelection.classList.remove('hidden');
-                        DOM.appContainer.classList.add('hidden');
-                         document.querySelectorAll('.character-card').forEach(c => c.classList.remove('opacity-50', 'pointer-events-none', 'processing'));
-                    }
-                    await checkAndResetDailyAllowance();
+                    profileData = docSnap.data();
                 }
+                
+                userProfile = profileData;
+
+                if (profileData.selectedCharacterId) {
+                    loadChatUI(profileData.selectedCharacterId);
+                } else {
+                    DOM.characterSelection.classList.remove('hidden');
+                    DOM.appContainer.classList.add('hidden');
+                    document.querySelectorAll('.character-card').forEach(c => c.classList.remove('processing'));
+                }
+                await checkAndResetDailyAllowance();
             });
         }
         
@@ -284,7 +283,6 @@
             }
 
             let systemPrompt = currentCharacter.systemPrompt;
-            // Adventure logic will modify systemPrompt if needed...
             
             const recentMessages = messages.sort((a,b)=>(a.timestamp?.toMillis() || 0) - (b.timestamp?.toMillis() || 0)).slice(-10);
             const chatHistory = [{role:"user",parts:[{text:systemPrompt}]}, ...recentMessages.map(m=>({role:m.role,parts:[{text:m.text}]}))];
