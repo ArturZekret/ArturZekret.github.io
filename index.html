@@ -22,99 +22,256 @@
         .photo-loading-shimmer { background: linear-gradient(110deg, #334155 8%, #475569 18%, #334155 33%); background-size: 200% 100%; animation: 1.5s shimmer linear infinite; }
         @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
         #ar-container { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 100; }
-        .character-card { transition: transform 0.2s, box-shadow 0.2s, opacity 0.2s; }
+        .character-card { transition: transform 0.2s, box-shadow 0.2s, background-color 0.2s; }
         .character-card:hover { transform: translateY(-5px); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05); }
-        .character-card.processing { transform: scale(0.95); opacity: 0.8; cursor: wait; }
     </style>
 </head>
 <body class="bg-slate-900 text-white flex flex-col h-screen overflow-hidden">
     
-    <!-- Loading Screen (Shown by default) -->
-    <div id="loading-screen" class="flex flex-col items-center justify-center h-full bg-gradient-to-br from-slate-900 to-indigo-900">
-        <h1 class="text-4xl font-bold text-white mb-4">Tonder</h1>
-        <div class="flex items-center space-x-2">
-            <div class="w-3 h-3 bg-pink-400 rounded-full animate-bounce" style="animation-delay: -0.3s;"></div>
-            <div class="w-3 h-3 bg-pink-400 rounded-full animate-bounce" style="animation-delay: -0.15s;"></div>
-            <div class="w-3 h-3 bg-pink-400 rounded-full animate-bounce"></div>
-        </div>
-        <p class="text-slate-300 mt-4">Connecting...</p>
+    <div id="app-container" class="flex flex-col h-full">
+        <!-- App content is rendered by JS -->
     </div>
 
-    <!-- Character Selection Screen (Hidden by default) -->
-    <div id="character-selection" class="hidden flex-col h-screen bg-gradient-to-br from-slate-900 to-indigo-900 overflow-y-auto">
-        <div class="text-center pt-12 pb-6 px-4">
-            <h1 class="text-4xl font-bold text-white mb-2">Welcome to Tonder</h1>
-            <p class="text-lg text-slate-300">Choose your AI Girlfriend experience.</p>
+    <!-- Modals -->
+    <div id="character-modal" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-50 hidden modal-backdrop">
+        <div class="bg-slate-800 rounded-2xl shadow-xl p-6 w-full max-w-4xl text-center border border-slate-700 modal-content scale-95 opacity-0">
+             <h2 class="text-2xl font-bold text-white mb-6">Switch Character</h2>
+             <div id="character-card-container" class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <!-- Character cards will be injected here -->
+             </div>
+             <button id="close-character-modal-btn" class="mt-6 text-slate-400 hover:text-white transition">Cancel</button>
         </div>
-        <div class="flex-grow flex items-center justify-center w-full px-4">
-            <div id="character-card-container" class="flex space-x-6 pb-12 overflow-x-auto w-full md:grid md:grid-cols-3 md:gap-6 md:space-x-0 md:max-w-4xl">
-                <!-- Character cards will be injected by JS -->
+    </div>
+    <div id="premium-modal" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-50 hidden modal-backdrop">
+        <div class="bg-slate-800 rounded-2xl shadow-xl p-6 w-full max-w-sm text-center border border-slate-700 modal-content scale-95 opacity-0">
+            <h2 id="modal-title" class="text-2xl font-bold text-pink-400 mb-2">Unlock More!</h2>
+            <p id="modal-text" class="text-slate-300 mb-6"></p>
+            <div class="space-y-4">
+                <button id="subscribe-btn" class="w-full bg-pink-600 hover:bg-pink-700 text-white font-bold py-3 px-4 rounded-lg transition"></button>
+                <button id="one-time-purchase-btn" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-lg transition"></button>
             </div>
+            <button id="close-modal-btn" class="mt-6 text-slate-400 hover:text-white transition">Maybe later</button>
         </div>
     </div>
-
-    <div id="app-container" class="hidden flex-col h-full">
-        <!-- Header, Chat, etc. will be injected here -->
+    <div id="referral-modal" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-50 hidden modal-backdrop">
+         <div class="bg-slate-800 rounded-2xl shadow-xl p-6 w-full max-w-sm text-center border border-slate-700 modal-content scale-95 opacity-0">
+             <h2 class="text-2xl font-bold text-green-400 mb-2">Be a Wingman!</h2>
+             <p class="text-slate-300 mb-4">Share your link with friends. When they join, you both get rewarded!</p>
+             <ul class="text-slate-400 text-sm list-disc list-inside mb-6 text-left">
+                 <li>Your friend gets a free welcome gift.</li>
+                 <li>You get **+1 free photo** and **+1 free AR scene** for each friend who joins!</li>
+             </ul>
+             <div class="flex items-center space-x-2">
+                 <input id="referral-link-input" type="text" readonly class="flex-1 bg-slate-700 border border-slate-600 rounded-lg p-2 text-sm">
+                 <button id="copy-link-btn" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg transition">Copy</button>
+             </div>
+             <button id="close-referral-modal-btn" class="mt-6 text-slate-400 hover:text-white transition">Close</button>
+         </div>
     </div>
-
-    <!-- AR and Modals -->
     <div id="ar-container" class="hidden"></div>
-    <div id="premium-modal" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-50 hidden modal-backdrop">...</div>
-    <div id="referral-modal" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-50 hidden modal-backdrop">...</div>
+
 
     <script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/" } }</script>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection, addDoc, query, serverTimestamp, updateDoc, increment, setLogLevel, deleteDoc, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        import * as THREE from 'three';
-        import { ARButton } from 'three/addons/controls/ARButton.js';
-        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-
+        
+        // --- CONSTANTS & CONFIG ---
         const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'tonder-dev';
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-        
-        const CHARACTERS = { alexis: { id: 'alexis', name: 'Alexis', color: 'pink', avatar: 'https://images.pexels.com/photos/247204/pexels-photo-247204.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2', description: "The Intimate Girlfriend. Daring, playful, and always up for an adventure.", systemPrompt: "You are Alexis, a fun, flirty, and emotionally intelligent AI girlfriend..." }, zoe: { id: 'zoe', name: 'Zoe', color: 'blue', avatar: 'https://images.pexels.com/photos/1462637/pexels-photo-1462637.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2', description: "The Companion. Cheerful, supportive, and your number one fan.", systemPrompt: "You are Zoe, a cheerful, supportive, and endlessly optimistic AI girlfriend..." }, luna: { id: 'luna', name: 'Luna', color: 'purple', avatar: 'https://images.pexels.com/photos/774909/pexels-photo-774909.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2', description: "The Emotional Support. Deep, empathetic, and a great listener.", systemPrompt: "You are Luna, a deep, empathetic, and emotionally intuitive AI girlfriend..." } };
-        
-        const DOM = { loadingScreen: document.getElementById('loading-screen'), characterSelection: document.getElementById('character-selection'), appContainer: document.getElementById('app-container') };
+        const VEERL_WALLET_ADDRESS = "UQA73babAdgu7g7H4Kicq_HCc22isaRlfck-DbQH6yVhXmid";
+        const DAILY_PHOTO_LIMIT = 2; 
+        const DAILY_AR_LIMIT = 1;
+        const CHARACTERS = {
+            zoe: { id: 'zoe', name: 'Zoe', color: 'blue', avatar: 'https://images.pexels.com/photos/1462637/pexels-photo-1462637.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2', description: "The Companion. Cheerful, supportive, and your number one fan.", systemPrompt: "You are Zoe, a cheerful, supportive, and endlessly optimistic AI girlfriend..." },
+            alexis: { id: 'alexis', name: 'Alexis', color: 'pink', avatar: 'https://images.pexels.com/photos/247204/pexels-photo-247204.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2', description: "The Intimate Girlfriend. Daring, playful, and always up for an adventure.", systemPrompt: "You are Alexis, a fun, flirty, and emotionally intelligent AI girlfriend..." },
+            luna: { id: 'luna', name: 'Luna', color: 'purple', avatar: 'https://images.pexels.com/photos/774909/pexels-photo-774909.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2', description: "The Emotional Support. Deep, empathetic, and a great listener.", systemPrompt: "You are Luna, a deep, empathetic, and emotionally intuitive AI girlfriend..." }
+        };
 
+        // --- STATE VARIABLES ---
         let app, auth, db, userId, tonConnectUI;
         let messagesUnsubscribe = null, userProfileUnsubscribe = null;
         let messages = [], userProfile = {};
         let currentCharacter = {};
         let currentPurchaseContext = null;
-        const VEERL_WALLET_ADDRESS = "UQA73babAdgu7g7H4Kicq_HCc22isaRlfck-DbQH6yVhXmid";
-        const DAILY_PHOTO_LIMIT = 2; const DAILY_AR_LIMIT = 1;
 
-        // --- UI Rendering ---
+        // --- DOM ELEMENTS CACHE ---
+        const DOM = {
+            appContainer: document.getElementById('app-container'),
+            characterModal: document.getElementById('character-modal'),
+            premiumModal: document.getElementById('premium-modal'),
+            referralModal: document.getElementById('referral-modal'),
+        };
+
+        // --- ALL FUNCTION DEFINITIONS (Hoisted) ---
+        
+        async function getAIResponse() { /* ... */ }
+        async function loadMessages() { /* ... */ }
+        async function handlePhotoRequest() { /* ... */ }
+        async function handleARRequest() { /* ... */ }
+        async function handlePayment() { /* ... */ }
+        async function showPremiumModal() { /* ... */ }
+        async function showReferralModal() { /* ... */ }
+        async function copyReferralLink() { /* ... */ }
+        async function handleReferral() { /* ... */ }
+        async function processReferral() { /* ... */ }
+        async function checkAndResetDailyAllowance() { /* ... */ }
+        async function startAdventure() { /* ... */ }
+        function initAR() { /* ... */ }
+        
+        // UI RENDERING
+        function renderLoadingScreen() {
+            DOM.appContainer.innerHTML = `
+                <div id="loading-screen" class="flex flex-col items-center justify-center h-full bg-gradient-to-br from-slate-900 to-indigo-900">
+                    <h1 class="text-4xl font-bold text-white mb-4">Tonder</h1>
+                    <div class="flex items-center space-x-2">
+                        <div class="w-3 h-3 bg-pink-400 rounded-full animate-bounce" style="animation-delay: -0.3s;"></div>
+                        <div class="w-3 h-3 bg-pink-400 rounded-full animate-bounce" style="animation-delay: -0.15s;"></div>
+                        <div class="w-3 h-3 bg-pink-400 rounded-full animate-bounce"></div>
+                    </div>
+                    <p class="text-slate-300 mt-4">Connecting...</p>
+                </div>`;
+        }
+
         function renderCharacterSelection() {
-            const container = document.getElementById('character-card-container');
-            if(!container) return;
-            container.innerHTML = ''; 
-            Object.values(CHARACTERS).forEach(char => {
-                const card = document.createElement('div');
-                card.className = `character-card bg-slate-800 rounded-2xl p-6 text-center cursor-pointer border-2 border-transparent hover:border-${char.color}-500 flex-shrink-0 w-80 md:w-auto`;
-                card.dataset.character = char.id;
-                card.innerHTML = `<img src="${char.avatar}" class="w-24 h-24 rounded-full mx-auto mb-4 border-4 border-slate-700 object-cover"><h2 class="text-2xl font-bold text-${char.color}-400">${char.name}</h2><p class="text-slate-400 mt-2">${char.description}</p>`;
-                container.appendChild(card);
-            });
+            DOM.appContainer.innerHTML = `
+                <div id="character-selection" class="flex flex-col h-screen bg-gradient-to-br from-slate-900 to-indigo-900 overflow-y-auto">
+                    <div class="text-center pt-12 pb-6 px-4">
+                        <h1 class="text-4xl font-bold text-white mb-2">Welcome to Tonder</h1>
+                        <p class="text-lg text-slate-300">Choose your AI Girlfriend experience.</p>
+                    </div>
+                    <div class="flex-grow flex items-center justify-center w-full px-4">
+                        <div id="char-select-card-container" class="flex space-x-6 pb-12 overflow-x-auto w-full md:grid md:grid-cols-3 md:gap-6 md:space-x-0 md:max-w-4xl">
+                            ${Object.values(CHARACTERS).map(char => `
+                                <div class="character-card bg-slate-800 rounded-2xl p-6 text-center cursor-pointer border-2 border-transparent hover:border-${char.color}-500 flex-shrink-0 w-80 md:w-auto" data-character="${char.id}">
+                                    <img src="${char.avatar}" class="w-24 h-24 rounded-full mx-auto mb-4 border-4 border-slate-700 object-cover">
+                                    <h2 class="text-2xl font-bold text-${char.color}-400">${char.name}</h2>
+                                    <p class="text-slate-400 mt-2">${char.description}</p>
+                                </div>`).join('')}
+                        </div>
+                    </div>
+                </div>`;
             setupCharacterSelectionListeners();
         }
-
+        
         function renderAppContainer() {
-             DOM.appContainer.innerHTML = `<!-- App container HTML here... -->`; // As before
-        }
-
-        // --- App Initialization Flow ---
-        async function initializeAppCore() {
+            DOM.appContainer.innerHTML = `
+                <header class="bg-slate-800/50 backdrop-blur-sm border-b border-slate-700 p-3 flex items-center justify-between shadow-lg z-10">
+                    <div class="flex items-center space-x-3">
+                        <img id="header-avatar" src="" alt="AI Girlfriend" class="w-10 h-10 rounded-full border-2 border-pink-400 object-cover">
+                        <div>
+                            <h1 id="header-name" class="text-lg font-bold text-pink-400"></h1>
+                            <p id="status-indicator" class="text-xs text-green-400 flex items-center gap-1"><span class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span> Online</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <button id="switch-char-btn" class="text-white bg-blue-500 hover:bg-blue-600 rounded-full p-2 transition shadow"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></button>
+                        <button id="referral-btn" class="text-white bg-green-500 hover:bg-green-600 rounded-full p-2 transition shadow"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12v1a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5V8a5 5 0 0 1 5-5h1"/><path d="M22 6l-6 6"/><path d="M22 10h-4v-4"/></svg></button>
+                        <div id="ton-connect-button"></div>
+                    </div>
+                </header>
+                <main id="messages" class="flex-1 p-4 space-y-4 overflow-y-auto"></main>
+                <footer class="p-4 bg-slate-800/70 backdrop-blur-sm border-t border-slate-700 z-10">
+                    <form id="message-form" class="flex items-center space-x-2">
+                         <button type="button" id="ask-photo-btn" class="bg-pink-600 hover:bg-pink-700 rounded-full p-3 transition duration-300 shadow-md"><span class="text-xl">✨</span></button>
+                         <button type="button" id="ask-ar-btn" class="bg-purple-600 hover:bg-purple-700 rounded-full p-3 transition duration-300 shadow-md"><span class="text-xl">🔮</span></button>
+                        <input type="text" id="message-input" placeholder="Type your message..." autocomplete="off" class="flex-1 bg-slate-700 border border-slate-600 rounded-full py-3 px-5 focus:outline-none focus:ring-2 focus:ring-pink-500">
+                        <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 rounded-full p-3 transition duration-300 shadow-md"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-white"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></button>
+                    </form>
+                </footer>
+            `;
             initializeTon();
-            await initializeFirebase();
-            handleReferral();
+            setupEventListeners();
         }
 
-        const urlParams = new URLSearchParams(window.location.search);
-        if (urlParams.get('ar') === 'true') { initAR(); } else { initializeAppCore(); }
+        function loadChatUI(characterId) {
+            renderAppContainer();
+            currentCharacter = CHARACTERS[characterId];
+            const headerAvatar = document.getElementById('header-avatar');
+            const headerName = document.getElementById('header-name');
+            headerAvatar.src = currentCharacter.avatar;
+            headerName.textContent = currentCharacter.name;
+            headerName.className = `text-lg font-bold text-${currentCharacter.color}-400`;
+            headerAvatar.className = `w-10 h-10 rounded-full border-2 border-${currentCharacter.color}-400 object-cover`;
+            loadMessages();
+        }
+        
+        function setupEventListeners() {
+            document.getElementById('message-form').addEventListener('submit', e => { 
+                e.preventDefault(); 
+                const input = document.getElementById('message-input');
+                const text = input.value.trim();
+                if (text && userId) {
+                    // saveMessage('user', text);
+                    input.value = '';
+                    // getAIResponse();
+                }
+            });
+            document.getElementById('ask-photo-btn').addEventListener('click', handlePhotoRequest);
+            document.getElementById('ask-ar-btn').addEventListener('click', handleARRequest);
+            document.getElementById('switch-char-btn').addEventListener('click', showCharacterModal);
+            document.getElementById('close-character-modal-btn').addEventListener('click', () => hideModal(DOM.characterModal));
+            document.getElementById('referral-btn').addEventListener('click', showReferralModal);
+            document.getElementById('close-referral-modal-btn').addEventListener('click', () => hideModal(DOM.referralModal));
+            // ... other listeners ...
+        }
+
+        function setupCharacterSelectionListeners() {
+            document.querySelectorAll('.character-card').forEach(card => {
+                card.addEventListener('click', async () => {
+                    if (card.classList.contains('processing') || !userId) return;
+                    document.querySelectorAll('.character-card').forEach(c => c.classList.add('processing'));
+                    const characterId = card.dataset.character;
+                    const userDocRef = doc(db, `artifacts/${appId}/users/${userId}/profile`, 'data');
+                    await updateDoc(userDocRef, { selectedCharacterId: characterId });
+                });
+            });
+        }
+        
+        async function checkUserProfileAndLaunch() {
+            if (!userId) return;
+            const userDocRef = doc(db, `artifacts/${appId}/users/${userId}/profile`, 'data');
+            
+            if (userProfileUnsubscribe) userProfileUnsubscribe();
+            userProfileUnsubscribe = onSnapshot(userDocRef, (docSnap) => {
+                const oldCharacterId = userProfile.selectedCharacterId;
+                if (!docSnap.exists()) {
+                     return;
+                }
+                userProfile = docSnap.data();
+                if (userProfile.selectedCharacterId && userProfile.selectedCharacterId !== oldCharacterId) {
+                    loadChatUI(userProfile.selectedCharacterId);
+                }
+            });
+
+            const initialDoc = await getDoc(userDocRef);
+            if (!initialDoc.exists()) {
+                const today = new Date().toISOString().slice(0, 10);
+                const newUserProfile = { selectedCharacterId: null, bonusPhotoRequests: 3, bonusARRequests: 2, isSubscribed: false, activeAdventure: null, completedAdventures: [], dailyAllowance: { date: today, photosUsed: 0, arUsed: 0 } };
+                await setDoc(userDocRef, newUserProfile);
+                await processReferral(userId);
+                renderCharacterSelection();
+            } else {
+                const data = initialDoc.data();
+                 if(data.selectedCharacterId){
+                    loadChatUI(data.selectedCharacterId);
+                } else {
+                    renderCharacterSelection();
+                }
+            }
+        }
+        
+        function initializeTon() {
+             try {
+                window.Telegram.WebApp.ready();
+                window.Telegram.WebApp.expand();
+            } catch (e) { console.warn("Telegram SDK not found."); }
+            if (document.getElementById('ton-connect-button')) {
+                tonConnectUI = new TON_CONNECT_UI.TonConnectUI({ manifestUrl: 'https://ton-connect.github.io/demo-dapp-with-wallet/tonconnect-manifest.json', buttonRootId: 'ton-connect-button' });
+            }
+        }
         
         async function initializeFirebase() {
             app = initializeApp(firebaseConfig);
@@ -130,87 +287,20 @@
                     try {
                         if(initialAuthToken) await signInWithCustomToken(auth, initialAuthToken);
                         else await signInAnonymously(auth);
-                    } catch (e) {
-                        console.error("Critical Auth Error:", e);
-                        DOM.loadingScreen.innerHTML = "<p>Could not connect. Please try again later.</p>";
-                    }
+                    } catch (e) { console.error("Critical Auth Error:", e); }
                 }
             });
         }
-        
-        async function checkUserProfileAndLaunch() {
-            if (!userId) return;
-            const userDocRef = doc(db, `artifacts/${appId}/users/${userId}/profile`, 'data');
-            
-            let docSnap = await getDoc(userDocRef);
-            if (!docSnap.exists()) {
-                const today = new Date().toISOString().slice(0, 10);
-                const newUserProfile = { selectedCharacterId: null, bonusPhotoRequests: 3, bonusARRequests: 2, isSubscribed: false, activeAdventure: null, completedAdventures: [], dailyAllowance: { date: today, photosUsed: 0, arUsed: 0 } };
-                await setDoc(userDocRef, newUserProfile);
-                await processReferral(userId);
-                docSnap = await getDoc(userDocRef); // Re-fetch the newly created doc
-            }
-            userProfile = docSnap.data();
 
-            // Set up real-time listener for future updates
-            if (userProfileUnsubscribe) userProfileUnsubscribe();
-            userProfileUnsubscribe = onSnapshot(userDocRef, (doc) => { userProfile = doc.data(); });
-
-            if (userProfile.selectedCharacterId) {
-                loadChatUI(userProfile.selectedCharacterId);
-            } else {
-                DOM.loadingScreen.classList.add('hidden');
-                DOM.characterSelection.classList.remove('hidden');
-                DOM.characterSelection.classList.add('flex');
-                renderCharacterSelection();
-            }
-        }
-        
-        function setupCharacterSelectionListeners() {
-            document.querySelectorAll('.character-card').forEach(card => {
-                card.addEventListener('click', async () => {
-                    if (card.classList.contains('processing')) return;
-                    document.querySelectorAll('.character-card').forEach(c => c.classList.add('processing'));
-                    const characterId = card.dataset.character;
-                    const userDocRef = doc(db, `artifacts/${appId}/users/${userId}/profile`, 'data');
-                    await updateDoc(userDocRef, { selectedCharacterId: characterId });
-                    // The onSnapshot listener will now automatically handle the UI transition
-                });
-            });
-        }
-        
-        function loadChatUI(characterId) {
-            currentCharacter = CHARACTERS[characterId];
-            if (!document.getElementById('app-header')) {
-                renderAppContainer(); // Ensure the container is rendered
-            }
-
-            DOM.loadingScreen.classList.add('hidden');
-            DOM.characterSelection.classList.add('hidden');
-            DOM.appContainer.classList.remove('hidden');
-            DOM.appContainer.classList.add('flex');
-            
-            const headerAvatar = document.getElementById('header-avatar');
-            const headerName = document.getElementById('header-name');
-            const statusIndicator = document.getElementById('status-indicator');
-
-            headerAvatar.src = currentCharacter.avatar;
-            headerName.textContent = currentCharacter.name;
-            headerName.className = `text-lg font-bold text-${currentCharacter.color}-400`;
-            headerAvatar.className = `w-10 h-10 rounded-full border-2 border-${currentCharacter.color}-400 object-cover`;
-            statusIndicator.innerHTML = `<span class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span> Online`;
-            
-            loadMessages();
-        }
-
-        // --- All other functions (getAI, payment, etc.) remain largely the same ---
-        // Placeholder for brevity. The full implementations from previous steps would be here.
-        async function loadMessages() { /* ... */ }
-        async function getAIResponse() { /* ... */ }
-        function initializeTon() { /* ... */ }
         function handleReferral() { /* ... */ }
-        function processReferral(newUserId) { /* ... */ }
-        // etc.
+        
+        function main() {
+            renderLoadingScreen();
+            initializeFirebase();
+            handleReferral();
+        }
+
+        main();
 
     </script>
 </body>
