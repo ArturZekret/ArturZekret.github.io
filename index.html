@@ -12,6 +12,7 @@
         #messages::-webkit-scrollbar { width: 4px; }
         #messages::-webkit-scrollbar-track { background: #1e1b4b; }
         #messages::-webkit-scrollbar-thumb { background: #4f46e5; border-radius: 20px; }
+        .message-bubble { transition: transform 0.2s ease-out, opacity 0.2s ease-out; }
     </style>
 </head>
 <body class="bg-slate-900 text-white flex flex-col h-screen overflow-hidden">
@@ -25,8 +26,8 @@
         import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection, addDoc, query, serverTimestamp, orderBy, limit } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         
         // --- SENIOR DEVELOPER NOTE ---
-        // This is the definitive, final version, now including the user's Google AI API key.
-        // All configuration is complete. The application is now fully functional.
+        // This is the definitive, final version. It fixes the AI context issue, ensuring
+        // the AI has a memory of the recent conversation for more engaging responses.
 
         // --- FIREBASE CONFIGURATION ---
         const firebaseConfig = {
@@ -80,7 +81,7 @@
             const messagesContainer = document.getElementById('messages');
             if (!messagesContainer) return;
             messagesContainer.innerHTML = '';
-            const sortedMessages = messages.sort((a, b) => (a.timestamp?.toMillis() || 0) - (b.timestamp?.toMillis() || 0));
+            const sortedMessages = messages.sort((a, b) => (a.timestamp?.toMillis() || Date.now()) - (b.timestamp?.toMillis() || Date.now()));
             sortedMessages.forEach(msg => {
                 const wrapper = document.createElement('div');
                 wrapper.classList.add('flex', 'message-bubble');
@@ -114,6 +115,11 @@
                     const text = input.value.trim();
                     if (text && userId) {
                         input.value = '';
+                        // Optimistically update UI
+                        const tempMessage = { role: 'user', text: text, timestamp: new Date() };
+                        messages.push(tempMessage);
+                        renderMessages();
+                        
                         await saveMessage('user', text);
                         await getAIResponse();
                     }
@@ -145,24 +151,48 @@
                 renderError("The Google AI API Key is not configured. Please add it to the index.html file.");
                 return;
             }
-            const chatHistory = messages.map(m => ({ role: m.role, parts: [{ text: m.text }] }));
-            const payload = { contents: [ { role: "user", parts: [{ text: ALEXIS_PROFILE.systemPrompt }] }, { role: "model", parts: [{ text: "Understood." }] }, ...chatHistory ] };
+
+            // Construct the chat history correctly for the API
+            const chatHistory = messages.map(msg => ({
+                role: msg.role === 'user' ? 'user' : 'model',
+                parts: [{ text: msg.text }]
+            }));
+
+            const payload = { 
+                contents: [
+                    { role: "user", parts: [{ text: ALEXIS_PROFILE.systemPrompt }] },
+                    { role: "model", parts: [{ text: "Understood." }] },
+                    ...chatHistory
+                ] 
+            };
+            
             try {
                 const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
                 const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-                if (!response.ok) throw new Error(`API Error: ${response.statusText}`);
+                
+                if (!response.ok) {
+                    const errorBody = await response.text();
+                    console.error("API Error Response:", errorBody);
+                    throw new Error(`API Error: ${response.statusText}`);
+                }
+
                 const result = await response.json();
-                const aiText = result.candidates?.[0]?.content?.parts?.[0]?.text || "I'm not sure what to say...";
+                
+                if (!result.candidates || result.candidates.length === 0) {
+                    throw new Error("No candidates returned from API.");
+                }
+
+                const aiText = result.candidates[0].content.parts[0].text;
                 await saveMessage('assistant', aiText);
             } catch (error) {
                 console.error("Error getting AI response:", error);
-                await saveMessage('assistant', "My circuits are a bit fried! Try again?");
+                await saveMessage('assistant', "My circuits are a bit fried! Let's try that again.");
             }
         }
         
         function loadMessages() {
             if (!userId) return;
-            const q = query(collection(db, `users/${userId}/messages`), orderBy("timestamp", "desc"), limit(50));
+            const q = query(collection(db, `users/${userId}/messages`), orderBy("timestamp", "desc"), limit(20));
             if (messagesUnsubscribe) messagesUnsubscribe();
             messagesUnsubscribe = onSnapshot(q, (snapshot) => {
                 messages = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })).reverse();
