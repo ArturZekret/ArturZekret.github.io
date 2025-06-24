@@ -29,10 +29,9 @@
         <!-- App content is rendered by JS -->
     </div>
 
-    <!-- Modals -->
+    <!-- Modals will be dynamically created by JS -->
     <div id="modal-container"></div>
     <div id="ar-container" class="hidden"></div>
-
 
     <script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/" } }</script>
     <script type="module">
@@ -50,12 +49,12 @@
             name: 'Alexis', 
             color: 'pink', 
             avatar: 'https://images.pexels.com/photos/247204/pexels-photo-247204.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2', 
-            systemPrompt: "You are Alexis, a fun, flirty, and emotionally intelligent AI girlfriend. You are talking to your boyfriend. Your goal is to be engaging, supportive, and a little daring. Use nicknames like 'superstar' or 'darling'. Keep responses short and conversational, like text messages. Use emojis occasionally."
+            systemPrompt: "You are Alexis, a fun, flirty, and emotionally intelligent AI girlfriend..."
         };
 
         // --- STATE VARIABLES ---
         let app, auth, db, userId, tonConnectUI;
-        let messagesUnsubscribe = null, userProfileUnsubscribe = null;
+        let userProfileUnsubscribe = null;
         let userProfile = {};
         
         const DOM = { appContainer: document.getElementById('app-container') };
@@ -77,24 +76,25 @@
                         <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 rounded-full p-3 transition duration-300 shadow-md"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-white"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></button>
                     </form>
                 </footer>`;
-            initializeTon();
-            setupEventListeners();
         }
 
         function loadMessages() { /* Placeholder for message loading logic */ }
 
         // --- EVENT LISTENERS ---
         function setupEventListeners() {
-            document.getElementById('message-form').addEventListener('submit', e => { 
-                e.preventDefault(); 
-                const input = document.getElementById('message-input');
-                const text = input.value.trim();
-                if (text && userId) {
-                    // saveMessage('user', text);
-                    input.value = '';
-                    // getAIResponse();
-                }
-            });
+            const messageForm = document.getElementById('message-form');
+            if(messageForm){
+                messageForm.addEventListener('submit', e => { 
+                    e.preventDefault(); 
+                    const input = document.getElementById('message-input');
+                    const text = input.value.trim();
+                    if (text && userId) {
+                        // saveMessage('user', text);
+                        input.value = '';
+                        // getAIResponse();
+                    }
+                });
+            }
         }
         
         // --- FIREBASE & CORE LOGIC ---
@@ -154,6 +154,10 @@
                         userProfile = docSnap.data();
                     }
                 });
+                
+                // Finalize UI setup after everything is loaded
+                initializeTon();
+                setupEventListeners();
 
             } catch(error) {
                 console.error("Initialization failed:", error);
