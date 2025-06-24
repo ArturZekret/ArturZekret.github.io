@@ -29,7 +29,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection, addDoc, query, serverTimestamp, orderBy } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection, addDoc, query, serverTimestamp, orderBy, limit } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         
         // --- CONSTANTS & CONFIG ---
         const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
@@ -101,6 +101,10 @@
                     const text = input.value.trim();
                     if (text && userId) {
                         input.value = '';
+                        // Optimistic UI update
+                        messages.push({ role: 'user', text: text, timestamp: new Date() });
+                        renderMessages();
+                        
                         await saveMessage('user', text);
                         await getAIResponse();
                     }
@@ -159,6 +163,11 @@
             messagesUnsubscribe = onSnapshot(q, (snapshot) => {
                 messages = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 renderMessages();
+                
+                // Send welcome message if chat is empty
+                if(messages.length === 0) {
+                    saveMessage('assistant', "Hey there, superstar! Ready to start our little adventure? 😉");
+                }
             });
         }
         
