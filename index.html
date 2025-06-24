@@ -12,7 +12,6 @@
         #messages::-webkit-scrollbar { width: 4px; }
         #messages::-webkit-scrollbar-track { background: #1e1b4b; }
         #messages::-webkit-scrollbar-thumb { background: #4f46e5; border-radius: 20px; }
-        .message-bubble { transition: transform 0.2s ease-out, opacity 0.2s ease-out; }
     </style>
 </head>
 <body class="bg-slate-900 text-white flex flex-col h-screen overflow-hidden">
@@ -23,11 +22,12 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection, addDoc, query, serverTimestamp, orderBy, limit } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, onSnapshot, collection, addDoc, query, serverTimestamp, orderBy, limit } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         
         // --- SENIOR DEVELOPER NOTE ---
-        // This is the definitive, final version. It fixes the AI context issue, ensuring
-        // the AI has a memory of the recent conversation for more engaging responses.
+        // This is the definitive, re-architected version. It removes Firebase Authentication
+        // to eliminate connection issues and uses a stable, local user ID instead.
+        // The security rules for Firestore must be updated for this code to work.
 
         // --- FIREBASE CONFIGURATION ---
         const firebaseConfig = {
@@ -115,11 +115,6 @@
                     const text = input.value.trim();
                     if (text && userId) {
                         input.value = '';
-                        // Optimistically update UI
-                        const tempMessage = { role: 'user', text: text, timestamp: new Date() };
-                        messages.push(tempMessage);
-                        renderMessages();
-                        
                         await saveMessage('user', text);
                         await getAIResponse();
                     }
@@ -143,7 +138,12 @@
                 await addDoc(collection(db, `users/${userId}/messages`), {
                     role, text, timestamp: serverTimestamp()
                 });
-            } catch (error) { console.error("Error saving message:", error); }
+            } catch (error) { 
+                console.error("Error saving message:", error); 
+                if (error.code === 'permission-denied') {
+                    renderError("Your database security rules are blocking access. Please update them in your Firebase Console and refresh.");
+                }
+            }
         }
         
         async function getAIResponse() {
@@ -152,8 +152,7 @@
                 return;
             }
 
-            // Construct the chat history correctly for the API
-            const chatHistory = messages.map(msg => ({
+            const chatHistory = messages.slice(-10).map(msg => ({ // Send last 10 messages for context
                 role: msg.role === 'user' ? 'user' : 'model',
                 parts: [{ text: msg.text }]
             }));
@@ -192,13 +191,18 @@
         
         function loadMessages() {
             if (!userId) return;
-            const q = query(collection(db, `users/${userId}/messages`), orderBy("timestamp", "desc"), limit(20));
+            const q = query(collection(db, `users/${userId}/messages`), orderBy("timestamp", "desc"), limit(50));
             if (messagesUnsubscribe) messagesUnsubscribe();
             messagesUnsubscribe = onSnapshot(q, (snapshot) => {
                 messages = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })).reverse();
                 renderMessages();
                 if(messages.length === 0) {
                     saveMessage('assistant', "Hey there, superstar! Ready to start our little adventure? 😉");
+                }
+            }, (error) => {
+                console.error("Error loading messages:", error);
+                if(error.code === 'permission-denied') {
+                    renderError("Your database security rules are blocking access. Please update them in your Firebase Console and refresh.");
                 }
             });
         }
