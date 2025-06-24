@@ -25,20 +25,16 @@
         <!-- App content is rendered by JS -->
     </div>
 
-    <div id="modal-container"></div>
-    <div id="ar-container" class="hidden"></div>
-
     <script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/" } }</script>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection, addDoc, query, serverTimestamp, updateDoc, increment, setLogLevel, deleteDoc, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection, addDoc, query, serverTimestamp, updateDoc, increment, setLogLevel, deleteDoc, writeBatch, orderBy } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         
         // --- CONSTANTS & CONFIG ---
         const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'tonder-dev';
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-        const VEERL_WALLET_ADDRESS = "UQA73babAdgu7g7H4Kicq_HCc22isaRlfck-DbQH6yVhXmid";
         const ALEXIS_PROFILE = { 
             id: 'alexis', 
             name: 'Alexis', 
@@ -163,7 +159,7 @@
         
         function loadMessages() {
             if (!userId) return;
-            const q = query(collection(db, `artifacts/${appId}/users/${userId}/messages`));
+            const q = query(collection(db, `artifacts/${appId}/users/${userId}/messages`), orderBy("timestamp"));
             if (messagesUnsubscribe) messagesUnsubscribe();
             messagesUnsubscribe = onSnapshot(q, (snapshot) => {
                 messages = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
