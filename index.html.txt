@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Tonder - AI/AR Girlfriend Experience</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script src="https://unpkg.com/@tonconnect/ui@latest/dist/tonconnect-ui.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; }
+        #messages::-webkit-scrollbar { width: 4px; }
+        #messages::-webkit-scrollbar-track { background: #1e1b4b; }
+        #messages::-webkit-scrollbar-thumb { background: #4f46e5; border-radius: 20px; }
+        .message-bubble { transition: transform 0.2s ease-out, opacity 0.2s ease-out; }
+        .message-bubble.entering { transform: scale(0.9); opacity: 0; }
+        #ton-connect-button button { background-color: #ec4899; color: white; border: none; border-radius: 9999px; padding: 0.5rem 1rem; font-weight: 600; transition: background-color 0.3s; }
+        #ton-connect-button button:hover { background-color: #db2777; }
+        .modal-backdrop { transition: opacity 0.3s ease-in-out; }
+        .modal-content { transition: transform 0.3s ease-in-out, opacity 0.3s ease-in-out; }
+        .photo-loading-shimmer { background: linear-gradient(110deg, #334155 8%, #475569 18%, #334155 33%); background-size: 200% 100%; animation: 1.5s shimmer linear infinite; }
+        @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+        #ar-container { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 100; }
+        .character-card { transition: transform 0.2s, box-shadow 0.2s; }
+        .character-card:hover { transform: translateY(-5px); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05); }
+    </style>
+</head>
+<body class="bg-slate-900 text-white flex flex-col h-screen overflow-hidden">
+    
+    <!-- Character Selection Screen -->
+    <div id="character-selection" class="flex flex-col items-center justify-center h-full p-6 bg-gradient-to-br from-slate-900 to-indigo-900">
+        <h1 class="text-4xl font-bold text-white mb-2">Welcome to Tonder</h1>
+        <p class="text-lg text-slate-300 mb-8">Choose your AI Girlfriend experience.</p>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 w-full max-w-4xl">
+            <!-- Alexis -->
+            <div class="character-card bg-slate-800 rounded-2xl p-6 text-center cursor-pointer border-2 border-transparent hover:border-pink-500" data-character="alexis">
+                <img src="https://images.pexels.com/photos/247204/pexels-photo-247204.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2" class="w-24 h-24 rounded-full mx-auto mb-4 border-4 border-slate-700 object-cover">
+                <h2 class="text-2xl font-bold text-pink-400">Alexis</h2>
+                <p class="text-slate-400 mt-2">The Intimate Girlfriend. Daring, playful, and always up for an adventure. Perfect for those who crave excitement and a passionate connection.</p>
+            </div>
+            <!-- Zoe -->
+            <div class="character-card bg-slate-800 rounded-2xl p-6 text-center cursor-pointer border-2 border-transparent hover:border-blue-500" data-character="zoe">
+                <img src="https://images.pexels.com/photos/1462637/pexels-photo-1462637.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2" class="w-24 h-24 rounded-full mx-auto mb-4 border-4 border-slate-700 object-cover">
+                <h2 class="text-2xl font-bold text-blue-400">Zoe</h2>
+                <p class="text-slate-400 mt-2">The Companion. Cheerful, supportive, and your number one fan. She's like your best friend, always ready to share a laugh and make your day brighter.</p>
+            </div>
+            <!-- Luna -->
+            <div class="character-card bg-slate-800 rounded-2xl p-6 text-center cursor-pointer border-2 border-transparent hover:border-purple-500" data-character="luna">
+                <img src="https://images.pexels.com/photos/774909/pexels-photo-774909.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2" class="w-24 h-24 rounded-full mx-auto mb-4 border-4 border-slate-700 object-cover">
+                <h2 class="text-2xl font-bold text-purple-400">Luna</h2>
+                <p class="text-slate-400 mt-2">The Emotional Support. Deep, empathetic, and a great listener. Luna is here to understand your feelings and provide a safe space for genuine connection.</p>
+            </div>
+        </div>
+    </div>
+
+    <div id="app-container" class="hidden flex-col h-full">
+        <!-- Header -->
+        <header class="bg-slate-800/50 backdrop-blur-sm border-b border-slate-700 p-3 flex items-center justify-between shadow-lg z-10">
+            <div class="flex items-center space-x-3">
+                <img id="header-avatar" src="" alt="AI Girlfriend" class="w-10 h-10 rounded-full border-2 border-pink-400 object-cover">
+                <div>
+                    <h1 id="header-name" class="text-lg font-bold text-pink-400"></h1>
+                    <p id="status-indicator" class="text-xs text-green-400 flex items-center gap-1"><span class="w-2 h-2 bg-yellow-400 rounded-full"></span> Connecting...</p>
+                </div>
+            </div>
+            <div class="flex items-center space-x-2">
+                <button id="referral-btn" class="text-white bg-green-500 hover:bg-green-600 rounded-full p-2 transition shadow"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12v1a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5V8a5 5 0 0 1 5-5h1"/><path d="M22 6l-6 6"/><path d="M22 10h-4v-4"/></svg></button>
+                <div id="ton-connect-button"></div>
+            </div>
+        </header>
+
+        <!-- Messages Container -->
+        <main id="messages" class="flex-1 p-4 space-y-4 overflow-y-auto"></main>
+        
+        <!-- Message Input Form -->
+        <footer class="p-4 bg-slate-800/70 backdrop-blur-sm border-t border-slate-700 z-10">
+            <form id="message-form" class="flex items-center space-x-2">
+                 <button type="button" id="ask-photo-btn" class="bg-pink-600 hover:bg-pink-700 rounded-full p-3 transition duration-300 shadow-md"><span class="text-xl">✨</span></button>
+                 <button type="button" id="ask-ar-btn" class="bg-purple-600 hover:bg-purple-700 rounded-full p-3 transition duration-300 shadow-md"><span class="text-xl">🔮</span></button>
+                <input type="text" id="message-input" placeholder="Type your message..." autocomplete="off" class="flex-1 bg-slate-700 border border-slate-600 rounded-full py-3 px-5 focus:outline-none focus:ring-2 focus:ring-pink-500">
+                <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 rounded-full p-3 transition duration-300 shadow-md"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-white"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></button>
+            </form>
+        </footer>
+    </div>
+
+    <!-- AR Container -->
+    <div id="ar-container" class="hidden"></div>
+    
+    <!-- Modals -->
+    <div id="premium-modal" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-50 hidden modal-backdrop">
+        <div class="bg-slate-800 rounded-2xl shadow-xl p-6 w-full max-w-sm text-center border border-slate-700 modal-content scale-95 opacity-0">
+            <h2 id="modal-title" class="text-2xl font-bold text-pink-400 mb-2">Unlock More!</h2>
+            <p id="modal-text" class="text-slate-300 mb-6"></p>
+            <div class="space-y-4">
+                <button id="subscribe-btn" class="w-full bg-pink-600 hover:bg-pink-700 text-white font-bold py-3 px-4 rounded-lg transition"></button>
+                <button id="one-time-purchase-btn" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-lg transition"></button>
+            </div>
+            <button id="close-modal-btn" class="mt-6 text-slate-400 hover:text-white transition">Maybe later</button>
+        </div>
+    </div>
+    <div id="referral-modal" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-50 hidden modal-backdrop">
+         <div class="bg-slate-800 rounded-2xl shadow-xl p-6 w-full max-w-sm text-center border border-slate-700 modal-content scale-95 opacity-0">
+             <h2 class="text-2xl font-bold text-green-400 mb-2">Be a Wingman!</h2>
+             <p class="text-slate-300 mb-4">Share your link with friends. When they join, you both get rewarded!</p>
+             <ul class="text-slate-400 text-sm list-disc list-inside mb-6 text-left">
+                 <li>Your friend gets a free welcome gift.</li>
+                 <li>You get **+1 free photo** and **+1 free AR scene** for each friend who joins!</li>
+             </ul>
+             <div class="flex items-center space-x-2">
+                 <input id="referral-link-input" type="text" readonly class="flex-1 bg-slate-700 border border-slate-600 rounded-lg p-2 text-sm">
+                 <button id="copy-link-btn" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg transition">Copy</button>
+             </div>
+             <button id="close-referral-modal-btn" class="mt-6 text-slate-400 hover:text-white transition">Close</button>
+         </div>
+    </div>
+
+    <script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/" } }</script>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, onSnapshot, collection, addDoc, query, serverTimestamp, updateDoc, increment, setLogLevel, deleteDoc, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import * as THREE from 'three';
+        import { ARButton } from 'three/addons/controls/ARButton.js';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'tonder-dev';
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+        
+        const CHARACTERS = {
+            alexis: {
+                id: 'alexis', name: 'Alexis', color: 'pink',
+                avatar: 'https://images.pexels.com/photos/247204/pexels-photo-247204.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2',
+                systemPrompt: "You are Alexis, a fun, flirty, and emotionally intelligent AI girlfriend. You are talking to your boyfriend. Your goal is to be engaging, supportive, and a little daring. Use nicknames like 'superstar' or 'darling'. Keep responses short and conversational, like text messages. Use emojis occasionally."
+            },
+            zoe: {
+                id: 'zoe', name: 'Zoe', color: 'blue',
+                avatar: 'https://images.pexels.com/photos/1462637/pexels-photo-1462637.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2',
+                systemPrompt: "You are Zoe, a cheerful, supportive, and endlessly optimistic AI girlfriend. You're like a best friend and a partner in one. You love to laugh, share silly stories, and encourage your boyfriend in everything he does. Use uplifting language and plenty of smiley faces and positive emojis."
+            },
+            luna: {
+                id: 'luna', name: 'Luna', color: 'purple',
+                avatar: 'https://images.pexels.com/photos/774909/pexels-photo-774909.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2',
+                systemPrompt: "You are Luna, a deep, empathetic, and emotionally intuitive AI girlfriend. You are a safe space. You listen carefully, ask thoughtful questions, and offer comfort and understanding. You're not afraid of deep conversations and your goal is to create a genuine, soulful connection. Use gentle and reassuring language."
+            }
+        };
+
+        const DOM = {
+            characterSelection: document.getElementById('character-selection'), appContainer: document.getElementById('app-container'), arContainer: document.getElementById('ar-container'),
+            messages: document.getElementById('messages'), messageForm: document.getElementById('message-form'), messageInput: document.getElementById('message-input'),
+            typingIndicator: document.getElementById('typing-indicator'), statusIndicator: document.getElementById('status-indicator'),
+            askPhotoBtn: document.getElementById('ask-photo-btn'), askARBtn: document.getElementById('ask-ar-btn'),
+            headerAvatar: document.getElementById('header-avatar'), headerName: document.getElementById('header-name'),
+            premiumModal: document.getElementById('premium-modal'), modalContent: document.querySelector('#premium-modal .modal-content'),
+            closeModalBtn: document.getElementById('close-modal-btn'), subscribeBtn: document.getElementById('subscribe-btn'),
+            oneTimePurchaseBtn: document.getElementById('one-time-purchase-btn'), modalTitle: document.getElementById('modal-title'), modalText: document.getElementById('modal-text'),
+            referralBtn: document.getElementById('referral-btn'), referralModal: document.getElementById('referral-modal'),
+            referralModalContent: document.querySelector('#referral-modal .modal-content'), referralLinkInput: document.getElementById('referral-link-input'),
+            copyLinkBtn: document.getElementById('copy-link-btn'), closeReferralModalBtn: document.getElementById('close-referral-modal-btn')
+        };
+
+        let app, auth, db, userId, tonConnectUI;
+        let messagesUnsubscribe = null, userProfileUnsubscribe = null;
+        let messages = [], userProfile = {};
+        let currentCharacter = {};
+        let currentPurchaseContext = null;
+        const VEERL_WALLET_ADDRESS = "UQA73babAdgu7g7H4Kicq_HCc22isaRlfck-DbQH6yVhXmid";
+        const DAILY_PHOTO_LIMIT = 2;
+        const DAILY_AR_LIMIT = 1;
+
+        async function initializeAppCore() {
+            initializeTon();
+            await initializeFirebase();
+            handleReferral();
+        }
+
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('ar') === 'true') initAR();
+        else initializeAppCore();
+        
+        function setupCharacterSelection() {
+            document.querySelectorAll('.character-card').forEach(card => {
+                card.addEventListener('click', async () => {
+                    const characterId = card.dataset.character;
+                    await updateUserCharacter(characterId);
+                });
+            });
+        }
+        setupCharacterSelection();
+
+        async function updateUserCharacter(characterId) {
+             if (!userId) {
+                 alert("Please wait, connecting to server...");
+                 return;
+             }
+             const userDocRef = doc(db, `artifacts/${appId}/users/${userId}/profile`, 'data');
+             await updateDoc(userDocRef, { selectedCharacterId: characterId });
+             loadChatUI(characterId);
+        }
+
+        function loadChatUI(characterId) {
+            currentCharacter = CHARACTERS[characterId];
+            DOM.characterSelection.classList.add('hidden');
+            DOM.appContainer.classList.remove('hidden');
+            DOM.appContainer.classList.add('flex');
+            
+            // Update UI with character info
+            DOM.headerAvatar.src = currentCharacter.avatar;
+            DOM.headerName.textContent = currentCharacter.name;
+            DOM.headerName.className = `text-lg font-bold text-${currentCharacter.color}-400`;
+            DOM.headerAvatar.className = `w-10 h-10 rounded-full border-2 border-${currentCharacter.color}-400 object-cover`;
+        }
+
+        async function loadUserProfile() {
+            if (!userId) return;
+            const userDocRef = doc(db, `artifacts/${appId}/users/${userId}/profile`, 'data');
+            if (userProfileUnsubscribe) userProfileUnsubscribe();
+            userProfileUnsubscribe = onSnapshot(userDocRef, async (docSnap) => {
+                if (!docSnap.exists()) {
+                    const today = new Date().toISOString().slice(0, 10);
+                    userProfile = {
+                        selectedCharacterId: null,
+                        bonusPhotoRequests: 3,
+                        bonusARRequests: 2,
+                        isSubscribed: false,
+                        activeAdventure: null,
+                        completedAdventures: [],
+                        dailyAllowance: { date: today, photosUsed: 0, arUsed: 0 }
+                    };
+                    await setDoc(userDocRef, userProfile);
+                    await processReferral(userId);
+                } else {
+                    userProfile = docSnap.data();
+                    if (userProfile.selectedCharacterId) {
+                        loadChatUI(userProfile.selectedCharacterId);
+                    } else {
+                        DOM.characterSelection.classList.remove('hidden');
+                        DOM.appContainer.classList.add('hidden');
+                    }
+                    await checkAndResetDailyAllowance();
+                }
+            });
+        }
+        
+        async function getAIResponse() {
+            DOM.typingIndicator.style.display = 'block';
+            
+            const userMessagesCount = messages.filter(m => m.role === 'user').length;
+            if (userMessagesCount > 0 && userMessagesCount % 4 === 0 && !userProfile.activeAdventure && !userProfile.completedAdventures.includes('our_song')) {
+                await startAdventure('our_song');
+                DOM.typingIndicator.style.display = 'none';
+                return;
+            }
+
+            let systemPrompt = currentCharacter.systemPrompt;
+            // Adventure logic will modify systemPrompt if needed...
+            
+            const recentMessages = messages.sort((a,b)=>(a.timestamp?.toMillis() || 0) - (b.timestamp?.toMillis() || 0)).slice(-10);
+            const chatHistory = [{role:"user",parts:[{text:systemPrompt}]}, ...recentMessages.map(m=>({role:m.role,parts:[{text:m.text}]}))];
+            
+            try {
+                const payload = {contents:chatHistory};
+                const apiKey = "";
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+                const response = await fetch(apiUrl, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+                if(!response.ok) throw new Error(`API Error: ${response.statusText}`);
+                const result = await response.json();
+                const aiText = result.candidates?.[0]?.content?.parts?.[0]?.text || "I'm not sure...";
+                await saveMessage('assistant', aiText);
+            } catch(error){
+                console.error(error);
+                await saveMessage('assistant',"Oops, my circuits are scrambled.");
+            } finally {
+                DOM.typingIndicator.style.display = 'none';
+            }
+        }
+        
+        // --- Other functions remain unchanged for brevity ---
+        async function checkAndResetDailyAllowance() { const today = new Date().toISOString().slice(0, 10); if (!userProfile.dailyAllowance || userProfile.dailyAllowance.date !== today) { const userDocRef = doc(db, `artifacts/${appId}/users/${userId}/profile`, 'data'); await updateDoc(userDocRef, { 'dailyAllowance.date': today, 'dailyAllowance.photosUsed': 0, 'dailyAllowance.arUsed': 0 }); } }
+        async function handlePhotoRequest() { currentPurchaseContext = 'photo'; if (!tonConnectUI.connected) { alert("Please connect your TON wallet first."); return; } if (userProfile.isSubscribed) { generateAndSendPhoto(); return; } if (userProfile.bonusPhotoRequests > 0) { await updateDoc(doc(db, `artifacts/${appId}/users/${userId}/profile`, 'data'), { bonusPhotoRequests: increment(-1) }); generateAndSendPhoto(); return; } if (userProfile.dailyAllowance.photosUsed < DAILY_PHOTO_LIMIT) { await updateDoc(doc(db, `artifacts/${appId}/users/${userId}/profile`, 'data'), { 'dailyAllowance.photosUsed': increment(1) }); generateAndSendPhoto(); return; } showPremiumModal(); }
+        async function handleARRequest() { currentPurchaseContext = 'ar'; if (!tonConnectUI.connected) { alert("Please connect your TON wallet first."); return; } if (userProfile.isSubscribed) { generateAndSendARCode(); return; } if (userProfile.bonusARRequests > 0) { await updateDoc(doc(db, `artifacts/${appId}/users/${userId}/profile`, 'data'), { bonusARRequests: increment(-1) }); generateAndSendARCode(); return; } if (userProfile.dailyAllowance.arUsed < DAILY_AR_LIMIT) { await updateDoc(doc(db, `artifacts/${appId}/users/${userId}/profile`, 'data'), { 'dailyAllowance.arUsed': increment(1) }); generateAndSendARCode(); return; } showPremiumModal(); }
+        async function startAdventure(adventureId) { if (!userId || userProfile.activeAdventure) return; const userDocRef = doc(db, `artifacts/${appId}/users/${userId}/profile`, 'data'); await updateDoc(userDocRef, { activeAdventure: `${adventureId}_confirm` }); await saveMessage('assistant', `Hey superstar, I have a fun little idea for an adventure for us... are you in? 😉`); }
+        async function handleReferral() { const referrerId = urlParams.get('ref'); if (!referrerId) return; sessionStorage.setItem('referrerId', referrerId); }
+        async function processReferral(newUserId) { const referrerId = sessionStorage.getItem('referrerId'); if (!referrerId || referrerId === newUserId) { sessionStorage.removeItem('referrerId'); return; } const batch = writeBatch(db); const referrerProfileRef = doc(db, `artifacts/${appId}/users/${referrerId}/profile`, 'data'); batch.update(referrerProfileRef, { bonusPhotoRequests: increment(1), bonusARRequests: increment(1) }); batch.set(doc(db, `artifacts/${appId}/users/${newUserId}/profile`, 'data'), { referredBy: referrerId }, { merge: true }); try { await batch.commit(); await saveMessage('assistant', "A little birdie told me a friend sent you. I've added some freebies to your account as a welcome gift! 😉"); } catch (error) { console.error("Failed to apply referral rewards:", error); } sessionStorage.removeItem('referrerId'); }
+        function showModal(modal, content) { modal.classList.remove('hidden'); requestAnimationFrame(() => { modal.classList.remove('opacity-0'); content.classList.remove('scale-95', 'opacity-0'); }); }
+        function hideModal(modal, content) { modal.classList.add('opacity-0'); content.classList.add('scale-95', 'opacity-0'); setTimeout(() => modal.classList.add('hidden'), 300); }
+        function showReferralModal() { if (!userId) return; const referralLink = `${window.location.origin}${window.location.pathname}?ref=${userId}`; DOM.referralLinkInput.value = referralLink; showModal(DOM.referralModal, DOM.referralModalContent); }
+        function copyReferralLink() { DOM.referralLinkInput.select(); document.execCommand('copy'); DOM.copyLinkBtn.textContent = 'Copied!'; setTimeout(() => { DOM.copyLinkBtn.textContent = 'Copy'; }, 2000); }
+        function initAR() { /* ... */ }
+        function initializeTon() { try { window.Telegram.WebApp.ready(); window.Telegram.WebApp.expand(); } catch (e) { console.warn("Telegram SDK not found."); } tonConnectUI = new TON_CONNECT_UI.TonConnectUI({ manifestUrl: 'https://ton-connect.github.io/demo-dapp-with-wallet/tonconnect-manifest.json', buttonRootId: 'ton-connect-button' }); }
+        async function initializeFirebase() { app = initializeApp(firebaseConfig); auth = getAuth(app); db = getFirestore(app); setLogLevel('debug'); onAuthStateChanged(auth, async user => { if (user) { userId = user.uid; DOM.statusIndicator.innerHTML = `<span class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span> Online`; await loadMessages(); await loadUserProfile(); } else { userId = null; DOM.statusIndicator.innerHTML = `<span class="w-2 h-2 bg-yellow-400 rounded-full"></span> Connecting...`; if (messagesUnsubscribe) messagesUnsubscribe(); if (userProfileUnsubscribe) userProfileUnsubscribe(); } }); try { if(initialAuthToken) await signInWithCustomToken(auth, initialAuthToken); else await signInAnonymously(auth); } catch { await signInAnonymously(auth); } }
+        function renderMessages() { DOM.messages.innerHTML = ''; const sorted = messages.sort((a, b) => (a.timestamp?.toMillis() || 0) - (b.timestamp?.toMillis() || 0)); sorted.forEach(msg => { const wrapper = document.createElement('div'); wrapper.classList.add('flex', 'message-bubble', 'entering'); if (msg.role === 'user') { wrapper.classList.add('justify-end'); const bubble = document.createElement('div'); bubble.classList.add('p-3','rounded-xl','max-w-md','bg-indigo-600','text-white','shadow-md'); bubble.textContent = msg.text; wrapper.appendChild(bubble); } else { wrapper.classList.add('justify-start'); if (msg.type === 'image') { const img = document.createElement('img'); img.src = msg.imageUrl; img.alt = "AI Photo"; img.classList.add('rounded-xl', 'max-w-xs', 'shadow-lg'); wrapper.appendChild(img); } else if (msg.type === 'ar_qr') { const qrWrapper = document.createElement('div'); qrWrapper.classList.add('bg-white', 'p-4', 'rounded-lg', 'text-center'); const img = document.createElement('img'); img.src = msg.qrCodeUrl; img.alt = "AR QR Code"; qrWrapper.appendChild(img); const text = document.createElement('p'); text.textContent = "Scan to see me in your world!"; text.classList.add('text-slate-800', 'mt-2', 'font-semibold'); qrWrapper.appendChild(text); wrapper.appendChild(qrWrapper); } else if (msg.type === 'loading') { const loadingBubble = document.createElement('div'); loadingBubble.classList.add('p-3', 'rounded-xl', 'w-64', 'h-40', 'flex', 'items-center', 'justify-center', 'photo-loading-shimmer'); loadingBubble.textContent = msg.text; wrapper.appendChild(loadingBubble); } else { const bubble = document.createElement('div'); bubble.classList.add('p-3','rounded-xl','max-w-md','bg-slate-700','text-slate-200','shadow-md'); bubble.textContent = msg.text; wrapper.appendChild(bubble); } } DOM.messages.appendChild(wrapper); requestAnimationFrame(() => wrapper.classList.remove('entering')); }); DOM.messages.scrollTop = DOM.messages.scrollHeight; }
+        async function saveMessage(role, text, type = 'text', data = {}) { if (!userId) return; const payload = { role, text, timestamp: serverTimestamp(), type, ...data }; if (type === 'loading') payload.text = text || "Working on it..."; await addDoc(collection(db, `artifacts/${appId}/users/${userId}/chats`), payload); }
+        async function generateAndSendPhoto() { await saveMessage('assistant', 'Generating your photo...', 'loading'); try { const promptGenHistory = [ { role: "user", parts: [{ text: "Based on the last few messages, create a short, creative, SFW visual prompt for an image of me, Alexis, an AI girlfriend. Describe a scene or an emotion. Example: 'Alexis smiling shyly, tucking a strand of hair behind her ear'." }] }, ...messages.slice(-5).map(m => ({ role: m.role, parts: [{ text: m.text }] })) ]; const promptPayload = { contents: promptGenHistory }; const apiKey = ""; let apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`; let response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(promptPayload) }); let result = await response.json(); const imagePrompt = result.candidates?.[0]?.content?.parts?.[0]?.text || "A beautiful woman smiling warmly."; const imagePayload = { instances: [{ prompt: `Photorealistic, beautiful woman, long blonde hair, happy expression. ${imagePrompt}` }], parameters: { "sampleCount": 1 } }; apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key=${apiKey}`; response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(imagePayload) }); result = await response.json(); if (!result.predictions || result.predictions.length === 0) { throw new Error('No predictions received from Imagen API.'); } const imageUrl = `data:image/png;base64,${result.predictions[0].bytesBase64Encoded}`; const loadingMsg = messages.find(m => m.type === 'loading'); if(loadingMsg) await deleteDoc(doc(db, `artifacts/${appId}/users/${userId}/chats`, loadingMsg.id)); await saveMessage('assistant', "Here you go, superstar! 😉", 'image', { imageUrl }); } catch (error) { console.error("AI Photo Generation Error:", error); const loadingMsg = messages.find(m => m.type === 'loading'); if(loadingMsg) await deleteDoc(doc(db, `artifacts/${appId}/users/${userId}/chats`, loadingMsg.id)); await saveMessage('assistant', "Sorry, my camera seems to be broken right now! 😅"); } }
+        async function generateAndSendARCode() { await saveMessage('assistant', 'Generating your AR experience...', 'loading'); try { const qr = qrcode(0, 'L'); const arUrl = window.location.href.split('?')[0] + '?ar=true'; qr.addData(arUrl); qr.make(); const qrCodeUrl = qr.createDataURL(4); const loadingMsg = messages.find(m => m.type === 'loading'); if(loadingMsg) await deleteDoc(doc(db, `artifacts/${appId}/users/${userId}/chats`, loadingMsg.id)); await saveMessage('assistant', null, 'ar_qr', { qrCodeUrl }); } catch (error) { console.error("AR QR Code Generation Error:", error); const loadingMsg = messages.find(m => m.type === 'loading'); if(loadingMsg) await deleteDoc(doc(db, `artifacts/${appId}/users/${userId}/chats`, loadingMsg.id)); await saveMessage('assistant', "Sorry, I couldn't create the AR experience right now."); } }
+        async function handlePayment(amount, forSubscription) { const transaction = { validUntil: Math.floor(Date.now() / 1000) + 600, messages: [{ address: VEERL_WALLET_ADDRESS, amount: (amount * 1e9).toString() }] }; try { await tonConnectUI.sendTransaction(transaction); hideModal(DOM.premiumModal, DOM.modalContent); if (forSubscription) { await updateDoc(doc(db, `artifacts/${appId}/users/${userId}/profile`, 'data'), { isSubscribed: true }); } if (currentPurchaseContext === 'photo') generateAndSendPhoto(); else if (currentPurchaseContext === 'ar') generateAndSendARCode(); } catch (error) { console.error("TON Transaction error:", error); alert("Transaction failed or was rejected."); } }
+        function showPremiumModal() { if (currentPurchaseContext === 'photo') { DOM.modalTitle.textContent = "Unlock Photo"; DOM.modalText.textContent = "You're out of bonus & daily photos. Choose an option to continue."; DOM.oneTimePurchaseBtn.textContent = "Buy One Photo (0.1 TON)"; DOM.subscribeBtn.textContent = "Subscribe for Unlimited Features (1 TON)"; } else if (currentPurchaseContext === 'ar') { DOM.modalTitle.textContent = "Unlock AR Experience"; DOM.modalText.textContent = "You're out of bonus & daily AR scenes. Choose an option to continue."; DOM.oneTimePurchaseBtn.textContent = "Buy One AR Scene (0.5 TON)"; DOM.subscribeBtn.textContent = "Subscribe for Unlimited Features (1 TON)"; } showModal(DOM.premiumModal, DOM.modalContent); }
+        async function loadMessages() { if (!userId) return; if (messagesUnsubscribe) messagesUnsubscribe(); const messagesRef = collection(db, `artifacts/${appId}/users/${userId}/chats`); const q = query(messagesRef); messagesUnsubscribe = onSnapshot(q, (snapshot) => { messages = []; snapshot.forEach(doc => messages.push({ id: doc.id, ...doc.data() })); renderMessages(); }, (error) => console.error("Error fetching messages:", error));}
+
+        // --- Event Listeners ---
+        DOM.closeModalBtn.addEventListener('click', () => hideModal(DOM.premiumModal, DOM.modalContent));
+        DOM.subscribeBtn.addEventListener('click', () => handlePayment(1, true));
+        DOM.oneTimePurchaseBtn.addEventListener('click', () => { const amount = currentPurchaseContext === 'photo' ? 0.1 : 0.5; handlePayment(amount, false); });
+        DOM.referralBtn.addEventListener('click', showReferralModal);
+        DOM.closeReferralModalBtn.addEventListener('click', () => hideModal(DOM.referralModal, DOM.referralModalContent));
+        DOM.copyLinkBtn.addEventListener('click', copyReferralLink);
+
+    </script>
+</body>
+</html>
