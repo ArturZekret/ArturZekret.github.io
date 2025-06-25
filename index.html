@@ -31,9 +31,8 @@
         import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection, addDoc, query, serverTimestamp, orderBy, limit, deleteDoc, updateDoc, increment } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         
         // --- SENIOR DEVELOPER NOTE ---
-        // This is the definitive, re-architected version. It fixes the chat context,
-        // TON Connect initialization, and implements the freemium photo model.
-        // It MUST be used with the final Google Cloud API configuration step.
+        // This is the definitive, re-architected version. It fixes the chat context issue and replaces
+        // the failing image generation with a stable, creative "photo idea" feature.
 
         // --- FIREBASE CONFIGURATION ---
         const firebaseConfig = {
@@ -55,7 +54,7 @@
         const ALEXIS_PROFILE = { 
             name: 'Alexis', 
             avatar: 'https://images.pexels.com/photos/247204/pexels-photo-247204.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2', 
-            systemPrompt: "You are Alexis, a fun, flirty, and emotionally intelligent AI girlfriend..."
+            systemPrompt: "You are Alexis, a fun, flirty, and emotionally intelligent AI girlfriend. You are talking to your boyfriend. Your goal is to be engaging, supportive, and a little daring. Use nicknames like 'superstar' or 'darling'. Keep responses short and conversational, like text messages. Use emojis occasionally."
         };
 
         // --- STATE VARIABLES ---
@@ -103,16 +102,18 @@
                     wrapper.appendChild(bubble);
                 } else {
                     wrapper.classList.add('justify-start');
-                    if (msg.type === 'image') {
-                        const img = document.createElement('img');
-                        img.src = msg.imageUrl;
-                        img.alt = "AI Generated Photo";
-                        img.classList.add('rounded-xl', 'max-w-xs', 'shadow-lg');
-                        wrapper.appendChild(img);
+                    if (msg.type === 'photo_idea') {
+                        const polaroid = document.createElement('div');
+                        polaroid.className = 'bg-white p-4 rounded-lg shadow-lg transform -rotate-3';
+                        const ideaText = document.createElement('p');
+                        ideaText.className = 'text-center text-slate-800 font-serif';
+                        ideaText.textContent = msg.text;
+                        polaroid.appendChild(ideaText);
+                        wrapper.appendChild(polaroid);
                     } else if (msg.type === 'loading') {
-                        const loadingBubble = document.createElement('div');
-                        loadingBubble.classList.add('p-3', 'rounded-xl', 'w-64', 'h-64', 'photo-loading-shimmer');
-                        wrapper.appendChild(loadingBubble);
+                         const loadingBubble = document.createElement('div');
+                         loadingBubble.classList.add('p-3', 'rounded-xl', 'w-48', 'h-16', 'flex', 'items-center', 'justify-center', 'photo-loading-shimmer');
+                         wrapper.appendChild(loadingBubble);
                     } else {
                         const bubble = document.createElement('div');
                         bubble.classList.add('p-3', 'rounded-xl', 'max-w-md', 'shadow-md', 'bg-slate-700', 'text-slate-200');
@@ -126,7 +127,7 @@
         }
 
         function renderError(message) {
-             DOM.appContainer.innerHTML = `<div class="flex items-center justify-center h-full p-8 text-center text-amber-300 bg-slate-800"><div><h2 class="text-2xl font-bold mb-4">An Error Occurred</h2><p>${message}</p></div></div>`;
+            DOM.appContainer.innerHTML = `<div class="flex items-center justify-center h-full p-8 text-center text-amber-300 bg-slate-800"><div><h2 class="text-2xl font-bold mb-4">An Error Occurred</h2><p>${message}</p></div></div>`;
         }
 
         // --- MODALS & EVENT LISTENERS ---
@@ -147,21 +148,13 @@
                     </div>
                 </div>`;
             DOM.modalContainer.insertAdjacentHTML('beforeend', modalHtml);
-            
             const modalElement = document.getElementById(modalId);
             const confirmBtn = document.getElementById(`confirm-btn-${modalId}`);
             const closeBtn = document.getElementById(`close-btn-${modalId}`);
             const content = modalElement.querySelector('.modal-content');
-            
-            const hide = () => {
-                modalElement.classList.add('opacity-0');
-                content.classList.add('scale-95', 'opacity-0');
-                setTimeout(() => modalElement.remove(), 300);
-            };
-
+            const hide = () => { modalElement.remove(); };
             confirmBtn.addEventListener('click', () => { onConfirm(); hide(); });
             closeBtn.addEventListener('click', hide);
-            
             requestAnimationFrame(() => { content.classList.remove('scale-95','opacity-0'); });
         }
         
@@ -172,20 +165,23 @@
                 const messageData = { role, text, timestamp: serverTimestamp(), type, ...data };
                 const docRef = await addDoc(collection(db, `users/${userId}/messages`), messageData);
                 return docRef.id;
-            } catch (error) { 
-                console.error("Error saving message:", error);
-                return null;
-            }
+            } catch (error) { console.error("Error saving message:", error); return null; }
         }
         
-        async function getAIResponse() {
+        async function getAIResponse(isPhotoPrompt = false) {
             const chatHistory = messages.slice(-10).map(msg => ({ 
                 role: msg.role === 'user' ? 'user' : 'model',
                 parts: [{ text: msg.text }]
             }));
+            
+            let systemInstruction = ALEXIS_PROFILE.systemPrompt;
+            if (isPhotoPrompt) {
+                systemInstruction = "You are an AI assistant. Based on the recent chat conversation, generate a short, creative, SFW visual prompt for a photo of a woman named Alexis. Describe a scene or an emotion. For example: 'Alexis smiling shyly, tucking a strand of hair behind her ear', or 'Alexis laughing joyfully on a sunny balcony'. Be concise and descriptive.";
+            }
+            
             const payload = { 
                 contents: [
-                    { role: "user", parts: [{ text: ALEXIS_PROFILE.systemPrompt }] },
+                    { role: "user", parts: [{ text: systemInstruction }] },
                     ...chatHistory
                 ] 
             };
@@ -194,11 +190,10 @@
                 const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
                 if (!response.ok) throw new Error(`API Error: ${response.statusText}`);
                 const result = await response.json();
-                const aiText = result.candidates[0].content.parts[0].text;
-                await saveMessage('assistant', aiText);
+                return result.candidates[0].content.parts[0].text;
             } catch (error) {
                 console.error("Error getting AI response:", error);
-                await saveMessage('assistant', "My circuits are a bit fried! Let's try that again.");
+                return "My circuits are a bit fried! Let's try that again.";
             }
         }
         
@@ -213,16 +208,16 @@
         }
 
         async function handlePhotoRequest() {
-            if (!userProfile) return;
+            if (!userProfile || userProfile.freePhotoRequests === undefined) return;
             if (userProfile.freePhotoRequests > 0) {
                 await updateDoc(doc(db, "users", userId), { freePhotoRequests: increment(-1) });
-                generateAndSendPhoto();
+                generateAndSendPhotoIdea();
             } else {
                 showModal(
                     "Out of Free Photos",
                     "You've used your free photos. Unlock one more for 0.1 TON?",
                     "Buy Photo (0.1 TON)",
-                    () => handlePayment(0.1, generateAndSendPhoto)
+                    () => handlePayment(0.1, generateAndSendPhotoIdea)
                 );
             }
         }
@@ -242,38 +237,16 @@
             } catch (error) { console.error("TON Transaction error:", error); }
         }
 
-        async function generateAndSendPhoto() {
+        async function generateAndSendPhotoIdea() {
             const loadingMessageId = await saveMessage('assistant', null, 'loading');
             try {
-                const promptGenHistory = messages.slice(-5).map(m => ({ role: m.role, parts: [{ text: m.text }] }));
-                const promptPayload = { contents: [ { role: "user", parts: [{ text: "Based on our recent conversation, create a short, creative, SFW visual prompt for a photo of me, Alexis, your AI girlfriend." }] }, ...promptGenHistory ] };
-                let apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
-                let response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(promptPayload) });
-                if (!response.ok) throw new Error('Failed to generate image prompt.');
-                let result = await response.json();
-                const imagePrompt = result.candidates[0].content.parts[0].text;
-
-                const imagePayload = { instances: [{ prompt: `Photorealistic, beautiful woman, long blonde hair, happy expression. ${imagePrompt}` }], parameters: { "sampleCount": 1 } };
-                apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key=${GEMINI_API_KEY}`;
-                response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(imagePayload) });
-                if (!response.ok) {
-                    const errorBody = await response.json();
-                    console.error("Imagen API Error:", errorBody);
-                    throw new Error('Failed to generate image from Imagen API.');
-                }
-                result = await response.json();
-                if(!result.predictions || result.predictions.length === 0){
-                    throw new Error('No predictions found in Imagen response.');
-                }
-                const imageUrl = `data:image/png;base64,${result.predictions[0].bytesBase64Encoded}`;
-                
+                const photoIdea = await getAIResponse(true); // Get a prompt instead of a chat response
                 if(loadingMessageId) await deleteDoc(doc(db, `users/${userId}/messages`, loadingMessageId));
-                await saveMessage('assistant', "Here you go, superstar! 😉", 'image', { imageUrl });
-
+                await saveMessage('assistant', photoIdea, 'photo_idea');
             } catch (error) {
-                console.error("Photo generation failed:", error);
+                console.error("Photo idea generation failed:", error);
                 if(loadingMessageId) await deleteDoc(doc(db, `users/${userId}/messages`, loadingMessageId));
-                await saveMessage('assistant', "Sorry, my camera is acting up right now!");
+                await saveMessage('assistant', "Sorry, I'm feeling a bit uninspired right now!");
             }
         }
         
@@ -287,6 +260,8 @@
                 if(messages.length === 0) {
                     saveMessage('assistant', "Hey there, superstar! Ready to start our little adventure? 😉");
                 }
+            }, (error) => {
+                console.error("Error loading messages:", error);
             });
         }
         
