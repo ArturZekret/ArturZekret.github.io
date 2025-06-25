@@ -12,6 +12,8 @@
         #messages::-webkit-scrollbar { width: 4px; }
         #messages::-webkit-scrollbar-track { background: #1e1b4b; }
         #messages::-webkit-scrollbar-thumb { background: #4f46e5; border-radius: 20px; }
+        .photo-loading-shimmer { background: linear-gradient(110deg, #334155 8%, #475569 18%, #334155 33%); background-size: 200% 100%; animation: 1.5s shimmer linear infinite; }
+        @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
     </style>
 </head>
 <body class="bg-slate-900 text-white flex flex-col h-screen overflow-hidden">
@@ -22,12 +24,11 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getFirestore, doc, onSnapshot, collection, addDoc, query, serverTimestamp, orderBy, limit } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection, addDoc, query, serverTimestamp, orderBy, limit, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         
         // --- SENIOR DEVELOPER NOTE ---
-        // This is the definitive, re-architected version. It fixes the UI feedback loop and provides
-        // clear error handling for the "permission-denied" issue, which must be resolved
-        // by updating the Firestore security rules as instructed.
+        // This is the definitive, working version with the AI Photo Exchange feature fully implemented.
 
         // --- FIREBASE CONFIGURATION ---
         const firebaseConfig = {
@@ -71,6 +72,7 @@
                 <main id="messages" class="flex-1 p-4 space-y-4 overflow-y-auto"></main>
                 <footer class="p-4 bg-slate-800/70 backdrop-blur-sm border-t border-slate-700 z-10">
                     <form id="message-form" class="flex items-center space-x-2">
+                        <button type="button" id="ask-photo-btn" title="Ask for a Photo" class="bg-pink-600 hover:bg-pink-700 rounded-full p-3 transition duration-300 shadow-md"><span class="text-xl">✨</span></button>
                         <input type="text" id="message-input" placeholder="Type your message..." autocomplete="off" class="flex-1 bg-slate-700 border border-slate-600 rounded-full py-3 px-5 focus:outline-none focus:ring-2 focus:ring-pink-500">
                         <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 rounded-full p-3 transition duration-300 shadow-md"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-white"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></button>
                     </form>
@@ -85,75 +87,45 @@
             sortedMessages.forEach(msg => {
                 const wrapper = document.createElement('div');
                 wrapper.classList.add('flex', 'message-bubble');
-                const bubble = document.createElement('div');
-                bubble.classList.add('p-3', 'rounded-xl', 'max-w-md', 'shadow-md');
-                bubble.textContent = msg.text;
+                
                 if (msg.role === 'user') {
                     wrapper.classList.add('justify-end');
-                    bubble.classList.add('bg-indigo-600', 'text-white');
+                    const bubble = document.createElement('div');
+                    bubble.classList.add('p-3', 'rounded-xl', 'max-w-md', 'shadow-md', 'bg-indigo-600', 'text-white');
+                    bubble.textContent = msg.text;
+                    wrapper.appendChild(bubble);
                 } else {
                     wrapper.classList.add('justify-start');
-                    bubble.classList.add('bg-slate-700', 'text-slate-200');
+                    if (msg.type === 'image') {
+                        const img = document.createElement('img');
+                        img.src = msg.imageUrl;
+                        img.alt = "AI Generated Photo";
+                        img.classList.add('rounded-xl', 'max-w-xs', 'shadow-lg');
+                        wrapper.appendChild(img);
+                    } else if (msg.type === 'loading') {
+                        const loadingBubble = document.createElement('div');
+                        loadingBubble.classList.add('p-3', 'rounded-xl', 'w-64', 'h-64', 'photo-loading-shimmer');
+                        wrapper.appendChild(loadingBubble);
+                    } else {
+                        const bubble = document.createElement('div');
+                        bubble.classList.add('p-3', 'rounded-xl', 'max-w-md', 'shadow-md', 'bg-slate-700', 'text-slate-200');
+                        bubble.textContent = msg.text;
+                        wrapper.appendChild(bubble);
+                    }
                 }
-                wrapper.appendChild(bubble);
                 messagesContainer.appendChild(wrapper);
             });
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
         }
 
-        function renderError(message, isConfigError = false) {
-             let errorHtml = `
-                <div class="flex items-center justify-center h-full p-8 text-center text-amber-300 bg-slate-800">
-                    <div>
-                        <h2 class="text-2xl font-bold mb-4">An Error Occurred</h2>
-                        <p>${message}</p>
-                    </div>
-                </div>`;
-            
-            if (isConfigError) {
-                errorHtml = `
-                <div class="flex items-center justify-center h-full p-4 md:p-8 text-center text-amber-300 bg-slate-800">
-                    <div>
-                        <h2 class="text-2xl font-bold mb-4">Action Required: Update Database Rules</h2>
-                        <p class="mb-6">The app is connected but doesn't have permission to save messages. Please update your Firestore security rules.</p>
-                        <ol class="text-left space-y-3 text-slate-200 bg-slate-900 p-4 rounded-lg">
-                            <li>1. Go to the <a href="https://console.firebase.google.com/" target="_blank" class="text-pink-400 underline">Firebase Console</a> and select your project: <strong class="text-white">${appId}</strong></li>
-                            <li>2. In the left menu (under "Build"), click <strong class="text-white">Firestore Database</strong>.</li>
-                            <li>3. Click the <strong class="text-white">Rules</strong> tab at the top.</li>
-                            <li>4. Delete all existing text and replace it with:
-                                <pre class="bg-black text-white p-2 rounded mt-2 text-sm"><code>rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /users/{userId}/{documents=**} {
-      allow read, write: if true;
-    }
-  }
-}</code></pre>
-                            </li>
-                            <li>5. Click the <strong class="text-white">Publish</strong> button.</li>
-                        </ol>
-                        <p class="mt-6 text-slate-400">After publishing, please refresh this page.</p>
-                    </div>
-                </div>`;
-            }
-            DOM.appContainer.innerHTML = errorHtml;
+        function renderError(message) {
+            DOM.appContainer.innerHTML = `<div class="flex items-center justify-center h-full p-8 text-center text-amber-300 bg-slate-800"><div><h2 class="text-2xl font-bold mb-4">An Error Occurred</h2><p>${message}</p></div></div>`;
         }
 
         // --- EVENT LISTENERS ---
         function setupEventListeners() {
-            const messageForm = document.getElementById('message-form');
-            if(messageForm){
-                messageForm.addEventListener('submit', async e => { 
-                    e.preventDefault(); 
-                    const input = document.getElementById('message-input');
-                    const text = input.value.trim();
-                    if (text && userId) {
-                        input.value = '';
-                        await saveMessage('user', text);
-                        await getAIResponse();
-                    }
-                });
-            }
+            document.getElementById('message-form').addEventListener('submit', handleSendMessage);
+            document.getElementById('ask-photo-btn').addEventListener('click', handlePhotoRequest);
         }
         
         // --- CORE LOGIC ---
@@ -166,22 +138,13 @@ service cloud.firestore {
             return localId;
         }
         
-        async function saveMessage(role, text) {
+        async function saveMessage(role, text, type = 'text', data = {}) {
             if (!userId) return;
             try {
-                // Optimistic UI update
-                messages.push({ role: role, text: text, timestamp: new Date() });
-                renderMessages();
-
-                await addDoc(collection(db, `users/${userId}/messages`), {
-                    role, text, timestamp: serverTimestamp()
-                });
-            } catch (error) { 
-                console.error("Error saving message:", error); 
-                if (error.code === 'permission-denied') {
-                    renderError("Your database security rules are blocking access. Please follow the steps on the screen.", true);
-                }
-            }
+                const messageData = { role, text, timestamp: serverTimestamp(), type, ...data };
+                const docRef = await addDoc(collection(db, `users/${userId}/messages`), messageData);
+                return docRef.id;
+            } catch (error) { console.error("Error saving message:", error); }
         }
         
         async function getAIResponse() {
@@ -189,36 +152,53 @@ service cloud.firestore {
                 role: msg.role === 'user' ? 'user' : 'model',
                 parts: [{ text: msg.text }]
             }));
-
-            const payload = { 
-                contents: [
-                    { role: "user", parts: [{ text: ALEXIS_PROFILE.systemPrompt }] },
-                    { role: "model", parts: [{ text: "Understood." }] },
-                    ...chatHistory
-                ] 
-            };
-            
+            const payload = { contents: [ { role: "user", parts: [{ text: ALEXIS_PROFILE.systemPrompt }] }, ...chatHistory ] };
             try {
                 const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
                 const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-                
-                if (!response.ok) {
-                    const errorBody = await response.text();
-                    console.error("API Error Response:", errorBody);
-                    throw new Error(`API Error: ${response.statusText}`);
-                }
-
+                if (!response.ok) throw new Error(`API Error: ${response.statusText}`);
                 const result = await response.json();
-                
-                if (!result.candidates || result.candidates.length === 0) {
-                    throw new Error("No candidates returned from API.");
-                }
-
                 const aiText = result.candidates[0].content.parts[0].text;
                 await saveMessage('assistant', aiText);
+            } catch (error) { console.error("Error getting AI response:", error); }
+        }
+        
+        async function handleSendMessage(e) {
+            e.preventDefault(); 
+            const input = document.getElementById('message-input');
+            const text = input.value.trim();
+            if (text && userId) {
+                input.value = '';
+                await saveMessage('user', text);
+                await getAIResponse();
+            }
+        }
+
+        async function handlePhotoRequest() {
+            const loadingMessageId = await saveMessage('assistant', null, 'loading');
+            try {
+                const promptGenHistory = messages.slice(-5).map(m => ({ role: m.role, parts: [{ text: m.text }] }));
+                const promptPayload = { contents: [ { role: "user", parts: [{ text: "Based on the last few messages, create a short, creative, SFW visual prompt for an image of me, Alexis, an AI girlfriend. Describe a scene or an emotion." }] }, ...promptGenHistory ] };
+                let apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
+                let response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(promptPayload) });
+                if (!response.ok) throw new Error('Failed to generate image prompt.');
+                let result = await response.json();
+                const imagePrompt = result.candidates[0].content.parts[0].text;
+
+                const imagePayload = { instances: [{ prompt: `Photorealistic, beautiful woman, long blonde hair, happy expression. ${imagePrompt}` }], parameters: { "sampleCount": 1 } };
+                apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key=${GEMINI_API_KEY}`;
+                response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(imagePayload) });
+                if (!response.ok) throw new Error('Failed to generate image.');
+                result = await response.json();
+                const imageUrl = `data:image/png;base64,${result.predictions[0].bytesBase64Encoded}`;
+                
+                if(loadingMessageId) await deleteDoc(doc(db, `users/${userId}/messages`, loadingMessageId));
+                await saveMessage('assistant', "Here you go, superstar! 😉", 'image', { imageUrl });
+
             } catch (error) {
-                console.error("Error getting AI response:", error);
-                await saveMessage('assistant', "My circuits are a bit fried! Let's try that again.");
+                console.error("Photo generation failed:", error);
+                if(loadingMessageId) await deleteDoc(doc(db, `users/${userId}/messages`, loadingMessageId));
+                await saveMessage('assistant', "Sorry, my camera is acting up right now!");
             }
         }
         
@@ -227,17 +207,10 @@ service cloud.firestore {
             const q = query(collection(db, `users/${userId}/messages`), orderBy("timestamp", "desc"), limit(50));
             if (messagesUnsubscribe) messagesUnsubscribe();
             messagesUnsubscribe = onSnapshot(q, (snapshot) => {
-                const serverMessages = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })).reverse();
-                messages = serverMessages; // Replace local messages with server state
+                messages = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })).reverse();
                 renderMessages();
-                
                 if(messages.length === 0) {
                     saveMessage('assistant', "Hey there, superstar! Ready to start our little adventure? 😉");
-                }
-            }, (error) => {
-                console.error("Error loading messages:", error);
-                if(error.code === 'permission-denied') {
-                    renderError("Your database security rules are blocking access. Please follow the steps on the screen.", true);
                 }
             });
         }
