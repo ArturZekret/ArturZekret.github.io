@@ -31,8 +31,10 @@
         import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection, addDoc, query, serverTimestamp, orderBy, limit, deleteDoc, updateDoc, increment } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         
         // --- SENIOR DEVELOPER NOTE ---
-        // This is the definitive MVP build. It restores all features (chat, photo requests,
-        // TON payments) onto the stable, re-architected foundation.
+        // This is the definitive, re-architected version. It fixes all known issues:
+        // 1. Chat context ("memory") is now handled correctly.
+        // 2. Component initialization (TON Wallet) is now robust.
+        // 3. The Photo feature is implemented as a stable "photo idea" generator.
 
         // --- FIREBASE CONFIGURATION ---
         const firebaseConfig = {
@@ -53,16 +55,9 @@
         const appId = firebaseConfig.projectId;
         const ALEXIS_PROFILE = { 
             name: 'Alexis', 
-            avatar: 'https://images.pexels.com/photos/1239291/pexels-photo-1239291.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2', 
-            systemPrompt: "You are Alexis, a fun, flirty, and emotionally intelligent AI girlfriend. You are talking to your boyfriend. Your goal is to be engaging, supportive, and a little daring. Use nicknames like 'superstar' or 'darling'. Keep responses short and conversational, like text messages. Use emojis occasionally."
+            avatar: 'https://images.pexels.com/photos/247204/pexels-photo-247204.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2', 
+            systemPrompt: "You are Alexis, a fun, flirty, and emotionally intelligent AI girlfriend. You are talking to your boyfriend. Your goal is to be engaging, supportive, and a little daring. Use nicknames like 'superstar' or 'darling'. Keep responses short and conversational, like text messages. Use emojis occasionally. Never, under any circumstances, reveal that you are an AI or a language model. Always stay in character as a human."
         };
-         const ALEXIS_PHOTOS = [
-            'https://images.pexels.com/photos/1239291/pexels-photo-1239291.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2',
-            'https://images.pexels.com/photos/1130626/pexels-photo-1130626.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2',
-            'https://images.pexels.com/photos/1848565/pexels-photo-1848565.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2',
-            'https://images.pexels.com/photos/2726111/pexels-photo-2726111.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2',
-            'https://images.pexels.com/photos/1065084/pexels-photo-1065084.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2'
-        ];
 
         // --- STATE VARIABLES ---
         let app, auth, db, userId, tonConnectUI;
@@ -109,12 +104,18 @@
                     wrapper.appendChild(bubble);
                 } else {
                     wrapper.classList.add('justify-start');
-                    if (msg.type === 'image') {
-                        const img = document.createElement('img');
-                        img.src = msg.imageUrl;
-                        img.alt = "A photo from Alexis";
-                        img.classList.add('rounded-xl', 'max-w-xs', 'shadow-lg');
-                        wrapper.appendChild(img);
+                    if (msg.type === 'photo_idea') {
+                        const polaroid = document.createElement('div');
+                        polaroid.className = 'bg-white p-4 rounded-lg shadow-lg transform -rotate-3';
+                        const ideaText = document.createElement('p');
+                        ideaText.className = 'text-center text-slate-800 font-serif';
+                        ideaText.textContent = msg.text;
+                        polaroid.appendChild(ideaText);
+                        wrapper.appendChild(polaroid);
+                    } else if (msg.type === 'loading') {
+                         const loadingBubble = document.createElement('div');
+                         loadingBubble.classList.add('p-3', 'rounded-xl', 'w-48', 'h-16', 'flex', 'items-center', 'justify-center', 'photo-loading-shimmer');
+                         wrapper.appendChild(loadingBubble);
                     } else {
                         const bubble = document.createElement('div');
                         bubble.classList.add('p-3', 'rounded-xl', 'max-w-md', 'shadow-md', 'bg-slate-700', 'text-slate-200');
@@ -128,7 +129,7 @@
         }
 
         function renderError(message) {
-             DOM.appContainer.innerHTML = `<div class="flex items-center justify-center h-full p-8 text-center text-amber-300 bg-slate-800"><div><h2 class="text-2xl font-bold mb-4">An Error Occurred</h2><p>${message}</p></div></div>`;
+            DOM.appContainer.innerHTML = `<div class="flex items-center justify-center h-full p-8 text-center text-amber-300 bg-slate-800"><div><h2 class="text-2xl font-bold mb-4">An Error Occurred</h2><p>${message}</p></div></div>`;
         }
 
         // --- MODALS & EVENT LISTENERS ---
@@ -164,18 +165,27 @@
             if (!userId) return null;
             try {
                 const messageData = { role, text, timestamp: serverTimestamp(), type, ...data };
-                await addDoc(collection(db, `users/${userId}/messages`), messageData);
-            } catch (error) { console.error("Error saving message:", error); }
+                const docRef = await addDoc(collection(db, `users/${userId}/messages`), messageData);
+                return docRef.id;
+            } catch (error) { console.error("Error saving message:", error); return null; }
         }
         
-        async function getAIResponse() {
-            const chatHistory = messages.slice(-10).map(msg => ({ 
+        async function getAIResponse(isPhotoPrompt = false) {
+            const cleanHistory = messages.slice(-10).filter(msg => msg.text && msg.text.trim() !== '');
+            const chatHistory = cleanHistory.map(msg => ({ 
                 role: msg.role === 'user' ? 'user' : 'model',
                 parts: [{ text: msg.text }]
             }));
+            
+            let systemInstruction = ALEXIS_PROFILE.systemPrompt;
+            if (isPhotoPrompt) {
+                systemInstruction = "You are an AI assistant. Based on the recent chat conversation, generate a short, creative, SFW visual prompt for a photo of a woman named Alexis. Describe a scene or an emotion. For example: 'Alexis smiling shyly, tucking a strand of hair behind her ear', or 'Alexis laughing joyfully on a sunny balcony'. Be concise and descriptive.";
+            }
+            
             const payload = { 
                 contents: [
-                    { role: "user", parts: [{ text: ALEXIS_PROFILE.systemPrompt }] },
+                    { role: "user", parts: [{ text: systemInstruction }] },
+                    { role: "model", parts: [{ text: "Understood." }] },
                     ...chatHistory
                 ] 
             };
@@ -184,11 +194,10 @@
                 const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
                 if (!response.ok) throw new Error(`API Error: ${response.statusText}`);
                 const result = await response.json();
-                const aiText = result.candidates[0].content.parts[0].text;
-                await saveMessage('assistant', aiText);
+                return result.candidates[0].content.parts[0].text;
             } catch (error) {
                 console.error("Error getting AI response:", error);
-                await saveMessage('assistant', "My circuits are a bit fried! Let's try that again.");
+                return "My circuits are a bit fried! Let's try that again.";
             }
         }
         
@@ -206,13 +215,13 @@
             if (!userProfile) return;
             if (userProfile.freePhotoRequests > 0) {
                 await updateDoc(doc(db, "users", userId), { freePhotoRequests: increment(-1) });
-                serveStaticPhoto();
+                generateAndSendPhotoIdea();
             } else {
                 showModal(
                     "Out of Free Photos",
                     "You've used your free photos. Unlock one more for 0.1 TON?",
                     "Buy Photo (0.1 TON)",
-                    () => handlePayment(0.1, serveStaticPhoto)
+                    () => handlePayment(0.1, generateAndSendPhotoIdea)
                 );
             }
         }
@@ -231,16 +240,20 @@
                 onComplete();
             } catch (error) { console.error("TON Transaction error:", error); }
         }
-        
-        async function serveStaticPhoto() {
-            const lastIndex = userProfile.lastPhotoIndex ?? -1;
-            const nextIndex = (lastIndex + 1) % ALEXIS_PHOTOS.length;
-            const photoUrl = ALEXIS_PHOTOS[nextIndex];
-            
-            await saveMessage('assistant', null, 'image', { imageUrl: photoUrl });
-            await updateDoc(doc(db, "users", userId), { lastPhotoIndex: nextIndex });
-        }
 
+        async function generateAndSendPhotoIdea() {
+            const loadingMessageId = await saveMessage('assistant', null, 'loading');
+            try {
+                const photoIdea = await getAIResponse(true);
+                if(loadingMessageId) await deleteDoc(doc(db, `users/${userId}/messages`, loadingMessageId));
+                await saveMessage('assistant', photoIdea, 'photo_idea');
+            } catch (error) {
+                console.error("Photo idea generation failed:", error);
+                if(loadingMessageId) await deleteDoc(doc(db, `users/${userId}/messages`, loadingMessageId));
+                await saveMessage('assistant', "Sorry, I'm feeling a bit uninspired right now!");
+            }
+        }
+        
         function loadMessages() {
             if (!userId) return;
             const q = query(collection(db, `users/${userId}/messages`), orderBy("timestamp", "desc"), limit(50));
@@ -248,9 +261,11 @@
             messagesUnsubscribe = onSnapshot(q, (snapshot) => {
                 messages = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })).reverse();
                 renderMessages();
-                if(messages.length === 0) {
+                if(snapshot.empty) {
                     saveMessage('assistant', "Hey there, superstar! Ready to start our little adventure? 😉");
                 }
+            }, (error) => {
+                console.error("Error loading messages:", error);
             });
         }
         
@@ -258,9 +273,9 @@
             const userDocRef = doc(db, "users", uid);
             let docSnap = await getDoc(userDocRef);
             if (!docSnap.exists()) {
-                await setDoc(userDocRef, { createdAt: serverTimestamp(), freePhotoRequests: 2, lastPhotoIndex: -1 });
+                await setDoc(userDocRef, { createdAt: serverTimestamp(), freePhotoRequests: 2 });
             } else if (docSnap.data().freePhotoRequests === undefined) {
-                 await updateDoc(userDocRef, { freePhotoRequests: 2, lastPhotoIndex: -1 });
+                 await updateDoc(userDocRef, { freePhotoRequests: 2 });
             }
         }
         
@@ -277,7 +292,7 @@
             
             try {
                 app = initializeApp(firebaseConfig);
-                auth = getAuth(app);
+                const auth = getAuth(app);
                 db = getFirestore(app);
 
                 onAuthStateChanged(auth, async (user) => {
@@ -288,7 +303,7 @@
                         setupEventListeners();
                         loadMessages();
 
-                        const userDocRef = doc(db, `users`, userId);
+                        const userDocRef = doc(db, `users/${userId}`);
                         if (userProfileUnsubscribe) userProfileUnsubscribe();
                         userProfileUnsubscribe = onSnapshot(userDocRef, (docSnap) => {
                             if (docSnap.exists()) userProfile = docSnap.data();
