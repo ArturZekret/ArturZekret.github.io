@@ -14,6 +14,10 @@
         #messages::-webkit-scrollbar-thumb { background: #4f46e5; border-radius: 20px; }
         .modal-backdrop { transition: opacity 0.3s ease-in-out; }
         .modal-content { transition: transform 0.3s ease-in-out, opacity 0.3s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        .fade-in { animation: fadeIn 1s ease-in-out; }
+        .fade-in-up { animation: fadeInUp 0.8s ease-in-out forwards; }
     </style>
 </head>
 <body class="bg-slate-900 text-white flex flex-col h-screen overflow-hidden">
@@ -29,10 +33,8 @@
         import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection, addDoc, query, serverTimestamp, orderBy, limit, updateDoc, increment } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         
         // --- SENIOR DEVELOPER NOTE ---
-        // This is the definitive, re-architected version. It fixes all known issues:
-        // 1. Chat context ("memory") is now handled correctly.
-        // 2. Component initialization (TON Wallet) is now robust.
-        // 3. The Photo feature is implemented with a freemium model.
+        // This is the definitive MVP build. It introduces a welcome screen for a better user
+        // experience and to ensure all components initialize correctly in the background.
 
         // --- FIREBASE CONFIGURATION ---
         const firebaseConfig = {
@@ -74,6 +76,20 @@
         const DOM = { appContainer: document.getElementById('app-container'), modalContainer: document.getElementById('modal-container') };
         
         // --- RENDER FUNCTIONS ---
+        function renderWelcomeScreen() {
+             DOM.appContainer.innerHTML = `
+                <div class="flex flex-col items-center justify-center h-full bg-gradient-to-br from-slate-900 to-indigo-900 text-center p-8 fade-in">
+                    <img src="${ALEXIS_PROFILE.avatar}" class="w-32 h-32 rounded-full mb-6 border-4 border-pink-400 shadow-lg" style="opacity:0; animation-delay: 0.2s;" onload="this.style.opacity=1" />
+                    <h1 class="text-5xl font-bold text-white fade-in-up" style="animation-delay: 0.4s;">Tonder</h1>
+                    <p class="text-xl text-slate-300 mt-2 fade-in-up" style="animation-delay: 0.6s;">Your AI Girlfriend Experience</p>
+                    <button id="start-chatting-btn" class="mt-8 bg-pink-600 hover:bg-pink-700 text-white font-bold py-3 px-8 rounded-full transition-transform transform hover:scale-105 shadow-lg fade-in-up" style="animation-delay: 0.8s;">
+                        Start Chatting
+                    </button>
+                </div>
+             `;
+             document.getElementById('start-chatting-btn').addEventListener('click', initializeChat);
+        }
+
         function renderChatUI() {
             DOM.appContainer.innerHTML = `
                 <header class="bg-slate-800/50 backdrop-blur-sm border-b border-slate-700 p-3 flex items-center justify-between shadow-lg z-10">
@@ -257,7 +273,7 @@
         }
         
         async function fetchOrCreateUserProfile(uid) {
-            const userDocRef = doc(db, "users", uid); // CORRECTED PATH
+            const userDocRef = doc(db, "users", uid);
             let docSnap = await getDoc(userDocRef);
             if (!docSnap.exists()) {
                 await setDoc(userDocRef, { createdAt: serverTimestamp(), freePhotoRequests: 2, lastPhotoIndex: -1 });
@@ -274,7 +290,7 @@
         }
         
         // --- MAIN INITIALIZATION ---
-        async function main() {
+        async function initializeChat() {
             renderChatUI();
             
             try {
@@ -290,7 +306,7 @@
                         setupEventListeners();
                         loadMessages();
 
-                        const userDocRef = doc(db, "users", userId); // CORRECTED PATH
+                        const userDocRef = doc(db, `users/${userId}`);
                         if (userProfileUnsubscribe) userProfileUnsubscribe();
                         userProfileUnsubscribe = onSnapshot(userDocRef, (docSnap) => {
                             if (docSnap.exists()) userProfile = docSnap.data();
@@ -308,7 +324,7 @@
             }
         }
 
-        window.onload = main;
+        window.onload = renderWelcomeScreen;
 
     </script>
 </body>
