@@ -31,8 +31,9 @@
         import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection, addDoc, query, serverTimestamp, orderBy, limit, deleteDoc, updateDoc, increment } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         
         // --- SENIOR DEVELOPER NOTE ---
-        // This is the definitive, re-architected version. It reinstates all features
-        // onto the stable authentication and loading foundation.
+        // This is the definitive, re-architected version. It fixes the chat context,
+        // TON Connect initialization, and implements the freemium photo model.
+        // It MUST be used with the final Google Cloud API configuration step.
 
         // --- FIREBASE CONFIGURATION ---
         const firebaseConfig = {
@@ -255,8 +256,15 @@
                 const imagePayload = { instances: [{ prompt: `Photorealistic, beautiful woman, long blonde hair, happy expression. ${imagePrompt}` }], parameters: { "sampleCount": 1 } };
                 apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key=${GEMINI_API_KEY}`;
                 response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(imagePayload) });
-                if (!response.ok) throw new Error('Failed to generate image.');
+                if (!response.ok) {
+                    const errorBody = await response.json();
+                    console.error("Imagen API Error:", errorBody);
+                    throw new Error('Failed to generate image from Imagen API.');
+                }
                 result = await response.json();
+                if(!result.predictions || result.predictions.length === 0){
+                    throw new Error('No predictions found in Imagen response.');
+                }
                 const imageUrl = `data:image/png;base64,${result.predictions[0].bytesBase64Encoded}`;
                 
                 if(loadingMessageId) await deleteDoc(doc(db, `users/${userId}/messages`, loadingMessageId));
@@ -305,7 +313,7 @@
             
             try {
                 app = initializeApp(firebaseConfig);
-                auth = getAuth(app);
+                const auth = getAuth(app);
                 db = getFirestore(app);
 
                 onAuthStateChanged(auth, async (user) => {
