@@ -12,15 +12,8 @@
         #messages::-webkit-scrollbar { width: 4px; }
         #messages::-webkit-scrollbar-track { background: #1e1b4b; }
         #messages::-webkit-scrollbar-thumb { background: #4f46e5; border-radius: 20px; }
-        .typing-indicator span {
-            animation: bounce 1.4s infinite ease-in-out both;
-        }
-        .typing-indicator span:nth-child(1) { animation-delay: -0.32s; }
-        .typing-indicator span:nth-child(2) { animation-delay: -0.16s; }
-        @keyframes bounce {
-            0%, 80%, 100% { transform: scale(0); }
-            40% { transform: scale(1.0); }
-        }
+        .photo-loading-shimmer { background: linear-gradient(110deg, #334155 8%, #475569 18%, #334155 33%); background-size: 200% 100%; animation: 1.5s shimmer linear infinite; }
+        @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
         .modal-backdrop { transition: opacity 0.3s ease-in-out; }
         .modal-content { transition: transform 0.3s ease-in-out, opacity 0.3s ease-in-out; }
     </style>
@@ -35,7 +28,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection, addDoc, query, serverTimestamp, orderBy, limit, updateDoc, increment } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection, addDoc, query, serverTimestamp, orderBy, limit, deleteDoc, updateDoc, increment } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         
         // --- SENIOR DEVELOPER NOTE ---
         // This is the definitive MVP build. It restores all features (chat, photo requests,
@@ -60,10 +53,10 @@
         const appId = firebaseConfig.projectId;
         const ALEXIS_PROFILE = { 
             name: 'Alexis', 
-            avatar: 'https://images.pexels.com/photos/247204/pexels-photo-247204.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2', 
-            systemPrompt: "You are Alexis, a fun, flirty, and emotionally intelligent AI girlfriend. You are talking to your boyfriend. Your goal is to be engaging, supportive, and a little daring. Use nicknames like 'superstar' or 'darling'. Keep responses short and conversational, like text messages. Use emojis occasionally. Never, under any circumstances, reveal that you are an AI or a language model. Always stay in character as a human."
+            avatar: 'https://images.pexels.com/photos/1239291/pexels-photo-1239291.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2', 
+            systemPrompt: "You are Alexis, a fun, flirty, and emotionally intelligent AI girlfriend. You are talking to your boyfriend. Your goal is to be engaging, supportive, and a little daring. Use nicknames like 'superstar' or 'darling'. Keep responses short and conversational, like text messages. Use emojis occasionally."
         };
-        const ALEXIS_PHOTOS = [
+         const ALEXIS_PHOTOS = [
             'https://images.pexels.com/photos/1239291/pexels-photo-1239291.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2',
             'https://images.pexels.com/photos/1130626/pexels-photo-1130626.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2',
             'https://images.pexels.com/photos/1848565/pexels-photo-1848565.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2',
@@ -133,22 +126,9 @@
             });
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
         }
-        
-        function showTypingIndicator() {
-            const messagesContainer = document.getElementById('messages');
-            if (!messagesContainer || document.getElementById('typing-indicator')) return;
-            const typingHtml = `<div id="typing-indicator" class="flex justify-start"><div class="bg-slate-700 rounded-xl p-4 flex items-center space-x-2"><div class="typing-indicator"><span class="inline-block w-2 h-2 bg-pink-400 rounded-full"></span><span class="inline-block w-2 h-2 bg-pink-400 rounded-full"></span><span class="inline-block w-2 h-2 bg-pink-400 rounded-full"></span></div></div></div>`;
-            messagesContainer.insertAdjacentHTML('beforeend', typingHtml);
-            messagesContainer.scrollTop = messagesContainer.scrollHeight;
-        }
-
-        function removeTypingIndicator() {
-            const indicator = document.getElementById('typing-indicator');
-            if (indicator) indicator.remove();
-        }
 
         function renderError(message) {
-            DOM.appContainer.innerHTML = `<div class="flex items-center justify-center h-full p-8 text-center text-amber-300 bg-slate-800"><div><h2 class="text-2xl font-bold mb-4">An Error Occurred</h2><p>${message}</p></div></div>`;
+             DOM.appContainer.innerHTML = `<div class="flex items-center justify-center h-full p-8 text-center text-amber-300 bg-slate-800"><div><h2 class="text-2xl font-bold mb-4">An Error Occurred</h2><p>${message}</p></div></div>`;
         }
 
         // --- MODALS & EVENT LISTENERS ---
@@ -189,7 +169,6 @@
         }
         
         async function getAIResponse() {
-            showTypingIndicator();
             const chatHistory = messages.slice(-10).map(msg => ({ 
                 role: msg.role === 'user' ? 'user' : 'model',
                 parts: [{ text: msg.text }]
@@ -207,9 +186,9 @@
                 const result = await response.json();
                 const aiText = result.candidates[0].content.parts[0].text;
                 await saveMessage('assistant', aiText);
-            } catch (error) { 
-                console.error("Error getting AI response:", error); 
-                removeTypingIndicator();
+            } catch (error) {
+                console.error("Error getting AI response:", error);
+                await saveMessage('assistant', "My circuits are a bit fried! Let's try that again.");
             }
         }
         
@@ -239,7 +218,7 @@
         }
         
         async function handlePayment(amount, onComplete) {
-            if (!window.tonConnectUI || !window.tonConnectUI.connected) {
+            if (!tonConnectUI || !tonConnectUI.connected) {
                 alert("Please connect your TON wallet first.");
                 return;
             }
@@ -248,11 +227,11 @@
                 messages: [{ address: TON_WALLET_ADDRESS, amount: (amount * 1e9).toString() }]
             };
             try {
-                await window.tonConnectUI.sendTransaction(transaction);
+                await tonConnectUI.sendTransaction(transaction);
                 onComplete();
             } catch (error) { console.error("TON Transaction error:", error); }
         }
-
+        
         async function serveStaticPhoto() {
             const lastIndex = userProfile.lastPhotoIndex ?? -1;
             const nextIndex = (lastIndex + 1) % ALEXIS_PHOTOS.length;
@@ -261,13 +240,12 @@
             await saveMessage('assistant', null, 'image', { imageUrl: photoUrl });
             await updateDoc(doc(db, "users", userId), { lastPhotoIndex: nextIndex });
         }
-        
+
         function loadMessages() {
             if (!userId) return;
             const q = query(collection(db, `users/${userId}/messages`), orderBy("timestamp", "desc"), limit(50));
             if (messagesUnsubscribe) messagesUnsubscribe();
             messagesUnsubscribe = onSnapshot(q, (snapshot) => {
-                removeTypingIndicator();
                 messages = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })).reverse();
                 renderMessages();
                 if(messages.length === 0) {
@@ -289,7 +267,7 @@
         function initializeTon() {
              try { window.Telegram.WebApp.ready(); window.Telegram.WebApp.expand(); } catch (e) { /* ignore */ }
             if (document.getElementById('ton-connect-button') && window.TonConnectUI) {
-                window.tonConnectUI = new window.TonConnectUI({ manifestUrl: 'https://ton-connect.github.io/demo-dapp-with-wallet/tonconnect-manifest.json', buttonRootId: 'ton-connect-button' });
+                tonConnectUI = new window.TonConnectUI({ manifestUrl: 'https://ton-connect.github.io/demo-dapp-with-wallet/tonconnect-manifest.json', buttonRootId: 'ton-connect-button' });
             }
         }
         
@@ -310,7 +288,7 @@
                         setupEventListeners();
                         loadMessages();
 
-                        const userDocRef = doc(db, `users/${userId}`);
+                        const userDocRef = doc(db, `users`, userId);
                         if (userProfileUnsubscribe) userProfileUnsubscribe();
                         userProfileUnsubscribe = onSnapshot(userDocRef, (docSnap) => {
                             if (docSnap.exists()) userProfile = docSnap.data();
