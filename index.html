@@ -12,8 +12,6 @@
         #messages::-webkit-scrollbar { width: 4px; }
         #messages::-webkit-scrollbar-track { background: #1e1b4b; }
         #messages::-webkit-scrollbar-thumb { background: #4f46e5; border-radius: 20px; }
-        .photo-loading-shimmer { background: linear-gradient(110deg, #334155 8%, #475569 18%, #334155 33%); background-size: 200% 100%; animation: 1.5s shimmer linear infinite; }
-        @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
         .modal-backdrop { transition: opacity 0.3s ease-in-out; }
         .modal-content { transition: transform 0.3s ease-in-out, opacity 0.3s ease-in-out; }
     </style>
@@ -28,13 +26,11 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection, addDoc, query, serverTimestamp, orderBy, limit, deleteDoc, updateDoc, increment } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection, addDoc, query, serverTimestamp, orderBy, limit, updateDoc, increment } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         
         // --- SENIOR DEVELOPER NOTE ---
-        // This is the definitive, re-architected version. It fixes all known issues:
-        // 1. Chat context ("memory") is now handled correctly.
-        // 2. Component initialization (TON Wallet) is now robust.
-        // 3. The Photo feature is implemented as a stable "photo idea" generator.
+        // This is the definitive MVP build. It restores all features (chat, photo requests,
+        // TON payments) onto the stable, re-architected foundation.
 
         // --- FIREBASE CONFIGURATION ---
         const firebaseConfig = {
@@ -55,7 +51,7 @@
         const appId = firebaseConfig.projectId;
         const ALEXIS_PROFILE = { 
             name: 'Alexis', 
-            avatar: 'https://images.pexels.com/photos/247204/pexels-photo-247204.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2', 
+            avatar: 'https://images.pexels.com/photos/1239291/pexels-photo-1239291.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2', 
             systemPrompt: "You are Alexis, a fun, flirty, and emotionally intelligent AI girlfriend..."
         };
         const ALEXIS_PHOTOS = [
@@ -89,6 +85,7 @@
                 <footer class="p-4 bg-slate-800/70 backdrop-blur-sm border-t border-slate-700 z-10">
                     <form id="message-form" class="flex items-center space-x-2">
                         <button type="button" id="ask-photo-btn" title="Ask for a Photo" class="bg-pink-600 hover:bg-pink-700 rounded-full p-3 transition duration-300 shadow-md"><span class="text-xl">✨</span></button>
+                        <button type="button" id="ask-ar-btn" title="See Me in AR" class="bg-purple-600 hover:bg-purple-700 rounded-full p-3 transition duration-300 shadow-md"><span class="text-xl">🔮</span></button>
                         <input type="text" id="message-input" placeholder="Type your message..." autocomplete="off" class="flex-1 bg-slate-700 border border-slate-600 rounded-full py-3 px-5 focus:outline-none focus:ring-2 focus:ring-pink-500">
                         <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 rounded-full p-3 transition duration-300 shadow-md"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-white"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></button>
                     </form>
@@ -117,10 +114,6 @@
                         img.alt = "A photo from Alexis";
                         img.classList.add('rounded-xl', 'max-w-xs', 'shadow-lg');
                         wrapper.appendChild(img);
-                    } else if (msg.type === 'loading') {
-                        const loadingBubble = document.createElement('div');
-                        loadingBubble.classList.add('p-3', 'rounded-xl', 'w-64', 'h-64', 'photo-loading-shimmer');
-                        wrapper.appendChild(loadingBubble);
                     } else {
                         const bubble = document.createElement('div');
                         bubble.classList.add('p-3', 'rounded-xl', 'max-w-md', 'shadow-md', 'bg-slate-700', 'text-slate-200');
@@ -141,6 +134,7 @@
         function setupEventListeners() {
             document.getElementById('message-form').addEventListener('submit', handleSendMessage);
             document.getElementById('ask-photo-btn').addEventListener('click', handlePhotoRequest);
+            document.getElementById('ask-ar-btn').addEventListener('click', () => alert('AR feature coming soon!'));
         }
         
         function showModal(title, text, buttonText, onConfirm) {
@@ -170,9 +164,8 @@
             if (!userId) return null;
             try {
                 const messageData = { role, text, timestamp: serverTimestamp(), type, ...data };
-                const docRef = await addDoc(collection(db, `users/${userId}/messages`), messageData);
-                return docRef.id;
-            } catch (error) { console.error("Error saving message:", error); return null; }
+                await addDoc(collection(db, `users/${userId}/messages`), messageData);
+            } catch (error) { console.error("Error saving message:", error); }
         }
         
         async function getAIResponse() {
