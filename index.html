@@ -29,8 +29,10 @@
         import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection, addDoc, query, serverTimestamp, orderBy, limit, updateDoc, increment } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         
         // --- SENIOR DEVELOPER NOTE ---
-        // This is the definitive MVP build. It restores all features (chat, photo requests,
-        // TON payments) onto the stable, re-architected foundation.
+        // This is the definitive, re-architected version. It fixes all known issues:
+        // 1. Chat context ("memory") is now handled correctly.
+        // 2. Component initialization (TON Wallet) is now robust.
+        // 3. The Photo feature is implemented with a freemium model.
 
         // --- FIREBASE CONFIGURATION ---
         const firebaseConfig = {
