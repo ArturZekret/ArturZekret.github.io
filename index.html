@@ -12,7 +12,6 @@
         #messages::-webkit-scrollbar { width: 4px; }
         #messages::-webkit-scrollbar-track { background: #1e1b4b; }
         #messages::-webkit-scrollbar-thumb { background: #4f46e5; border-radius: 20px; }
-        .message-bubble { transition: transform 0.2s ease-out, opacity 0.2s ease-out; }
         .photo-loading-shimmer { background: linear-gradient(110deg, #334155 8%, #475569 18%, #334155 33%); background-size: 200% 100%; animation: 1.5s shimmer linear infinite; }
         @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
         .modal-backdrop { transition: opacity 0.3s ease-in-out; }
@@ -32,8 +31,9 @@
         import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection, addDoc, query, serverTimestamp, orderBy, limit, deleteDoc, updateDoc, increment } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         
         // --- SENIOR DEVELOPER NOTE ---
-        // This is the definitive, re-architected version. It re-instates all features
-        // onto the stable authentication and loading foundation.
+        // This is the definitive, re-architected version. It fixes the chat context,
+        // TON Connect initialization, and implements the freemium photo model.
+        // It MUST be used with the final Google Cloud API configuration step.
 
         // --- FIREBASE CONFIGURATION ---
         const firebaseConfig = {
@@ -125,7 +125,9 @@
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
         }
 
-        function renderError(message) { /* ... same as before ... */ }
+        function renderError(message) {
+             DOM.appContainer.innerHTML = `<div class="flex items-center justify-center h-full p-8 text-center text-amber-300 bg-slate-800"><div><h2 class="text-2xl font-bold mb-4">An Error Occurred</h2><p>${message}</p></div></div>`;
+        }
 
         // --- MODALS & EVENT LISTENERS ---
         function setupEventListeners() {
@@ -145,7 +147,7 @@
                     </div>
                 </div>`;
             DOM.modalContainer.insertAdjacentHTML('beforeend', modalHtml);
-
+            
             const modalElement = document.getElementById(modalId);
             const confirmBtn = document.getElementById(`confirm-btn-${modalId}`);
             const closeBtn = document.getElementById(`close-btn-${modalId}`);
@@ -160,7 +162,7 @@
             confirmBtn.addEventListener('click', () => { onConfirm(); hide(); });
             closeBtn.addEventListener('click', hide);
             
-            requestAnimationFrame(() => { modalElement.classList.remove('opacity-0'); content.classList.remove('scale-95', 'opacity-0'); });
+            requestAnimationFrame(() => { content.classList.remove('opacity-0'); });
         }
         
         // --- CORE LOGIC ---
@@ -176,7 +178,29 @@
             }
         }
         
-        async function getAIResponse() { /* ... same as before ... */ }
+        async function getAIResponse() {
+            const chatHistory = messages.slice(-10).map(msg => ({ 
+                role: msg.role === 'user' ? 'user' : 'model',
+                parts: [{ text: msg.text }]
+            }));
+            const payload = { 
+                contents: [
+                    { role: "user", parts: [{ text: ALEXIS_PROFILE.systemPrompt }] },
+                    ...chatHistory
+                ] 
+            };
+            try {
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
+                const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                if (!response.ok) throw new Error(`API Error: ${response.statusText}`);
+                const result = await response.json();
+                const aiText = result.candidates[0].content.parts[0].text;
+                await saveMessage('assistant', aiText);
+            } catch (error) {
+                console.error("Error getting AI response:", error);
+                await saveMessage('assistant', "My circuits are a bit fried! Let's try that again.");
+            }
+        }
         
         async function handleSendMessage(e) {
             e.preventDefault(); 
@@ -222,7 +246,7 @@
             const loadingMessageId = await saveMessage('assistant', null, 'loading');
             try {
                 const promptGenHistory = messages.slice(-5).map(m => ({ role: m.role, parts: [{ text: m.text }] }));
-                const promptPayload = { contents: [ { role: "user", parts: [{ text: "Based on the last few messages, create a short, creative, SFW visual prompt for an image of me, Alexis, an AI girlfriend. Describe a scene or an emotion." }] }, ...promptGenHistory ] };
+                const promptPayload = { contents: [ { role: "user", parts: [{ text: "Based on our recent conversation, create a short, creative, SFW visual prompt for a photo of me, Alexis, your AI girlfriend." }] }, ...promptGenHistory ] };
                 let apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
                 let response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(promptPayload) });
                 if (!response.ok) throw new Error('Failed to generate image prompt.');
